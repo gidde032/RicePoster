@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RicePoster</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f0f0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #fff;
+  }
+
+  .header-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .badge {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .badge-toggle { cursor: pointer; user-select: none; }
+  .badge-toggle:hover { filter: brightness(1.3); }
+
+  .badge-mock { background: #3b2a00; color: #ffb84d; }
+  .badge-browser { background: #1e2a1e; color: #6dca6d; }
+  .badge-api { background: #1e1e2a; color: #6d6dca; }
+  .badge-headless { background: #1e2a2a; color: #6dcaca; }
+  .badge-visible { background: #2a2a1e; color: #caca6d; }
+
+  .status-bar {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 12px 16px;
+    display: flex;
+    gap: 24px;
+    font-size: 12px;
+    color: #888;
+  }
+
+  .status-bar-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-bar-section .label {
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 10px;
+    margin-right: 4px;
+  }
+
+  .session-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .session-dot .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .dot-on { background: #4ade80; }
+  .dot-off { background: #f87171; }
+
+  .slots-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .slot-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+  }
+
+  .slot-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 12px;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .drop-zone {
+    width: 200px;
+    min-height: 200px;
+    height: auto;
+    border: 2px dashed #333;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: #666;
+  }
+
+  .drop-zone.has-file {
+    border-style: solid;
+    border-color: #333;
+  }
+
+  .drop-zone-text {
+    font-size: 13px;
+    color: #666;
+    text-align: center;
+    padding: 8px;
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .drop-zone img, .drop-zone video {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .slot-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .field-label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+
+  input[type="text"], textarea, select {
+    width: 100%;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #e0e0e0;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input[type="text"]:focus, textarea:focus, select:focus {
+    border-color: #3b82f6;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 140px;
+    line-height: 1.5;
+  }
+
+  .media-type-badge {
+    display: inline-block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: #1e2a1e;
+    color: #6dca6d;
+    margin-left: 8px;
+  }
+
+  .media-type-badge.video {
+    background: #2a1e2a;
+    color: #ca6dca;
+  }
+
+  .thumb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .thumb-chip {
+    height: 44px;
+    border-radius: 4px;
+    border: 1px solid #333;
+  }
+
+  .thumb-note {
+    font-size: 11px;
+    color: #888;
+  }
+
+  .actions {
+    max-width: 900px;
+    margin: 28px auto 0;
+    display: flex;
+    gap: 12px;
+  }
+
+  button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-generate {
+    background: #2563eb;
+    color: #fff;
+    flex: 1;
+  }
+
+  .btn-generate:hover:not(:disabled) { background: #1d4ed8; }
+
+  .btn-post {
+    background: #16a34a;
+    color: #fff;
+    flex: 1;
+  }
+
+  .btn-post:hover:not(:disabled) { background: #15803d; }
+
+  .btn-schedule {
+    background: #7c3aed;
+    color: #fff;
+    flex: 0 0 auto;
+  }
+
+  .btn-schedule:hover:not(:disabled) { background: #6d28d9; }
+
+  .schedule-row {
+    max-width: 900px;
+    margin: 8px auto 0;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .schedule-row input[type="datetime-local"] {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    flex: 1;
+  }
+
+  .queue-badge {
+    background: #2d1b69;
+    color: #a78bfa;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .queue-badge:hover { filter: brightness(1.3); }
+
+  .queue-panel {
+    max-width: 900px;
+    margin: 12px auto 0;
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 8px 16px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: none;
+  }
+
+  .queue-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #222;
+    font-size: 12px;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .queue-item:last-child { border-bottom: none; }
+
+  .queue-item-interrupted { color: #f87171; }
+
+  .queue-item .btn-small { margin-left: 8px; }
+
+  .queue-media-heading {
+    padding: 10px 0 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a78bfa;
+    border-top: 1px solid #222;
+  }
+
+  .queue-item-media { color: #ccc; }
+
+  .queue-media-reason {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+  }
+
+  .history-scheduled {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #2d1b69;
+    color: #a78bfa;
+    margin-left: 6px;
+  }
+
+  .status-panel {
+    max-width: 900px;
+    margin: 20px auto 0;
+  }
+
+  .status-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #222;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-icon { font-size: 16px; }
+  .status-success .status-icon { color: #4ade80; }
+  .status-error .status-icon { color: #f87171; }
+  .status-pending .status-icon { color: #fbbf24; }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #333;
+    border-top-color: #fbbf24;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  button:active:not(:disabled) { transform: translateY(1px); }
+
+  .btn-secondary {
+    background: #262626;
+    color: #aaa;
+    flex: 0 0 auto;
+  }
+
+  .btn-secondary:hover:not(:disabled) { background: #333; color: #ddd; }
+
+  .btn-small { padding: 6px 14px; font-size: 12px; }
+
+  .upload-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    background: #222;
+    display: none;
+  }
+
+  .upload-progress .fill {
+    height: 100%;
+    width: 0%;
+    background: #2563eb;
+    transition: width 0.15s;
+  }
+
+  .char-count {
+    font-size: 11px;
+    color: #666;
+    text-align: right;
+    margin-top: 4px;
+  }
+
+  .char-count.warn { color: #fbbf24; }
+  .char-count.over { color: #f87171; }
+
+  /* Caption generation failures render here rather than into the textarea,
+     where an error string could be mistaken for a caption and posted (FE-6). */
+  .caption-error {
+    font-size: 11px;
+    color: #f87171;
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .regen-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: center;
+  }
+
+  .regen-row input {
+    flex: 1;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .media-bar {
+    max-width: 900px;
+    margin: 16px auto 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #666;
+  }
+
+  .history-panel {
+    max-width: 900px;
+    margin: 12px auto 0;
+    background: #141414;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 8px 16px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .history-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #222;
+    font-size: 12px;
+    color: #aaa;
+  }
+
+  .history-item:last-child { border-bottom: none; }
+
+  .history-time { color: #666; margin-right: 6px; }
+
+  .history-mode {
+    text-transform: uppercase;
+    font-size: 10px;
+    color: #ffb84d;
+    margin-left: 4px;
+  }
+
+  .history-caption {
+    color: #777;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .history-empty { padding: 10px 0; font-size: 12px; color: #666; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>RICEPOSTER</h1>
+  <div class="header-badges" id="headerBadges"></div>
+</div>
+
+<div class="status-bar" id="statusBar" style="display:none"></div>
+
+<div class="slots-container" id="slotsContainer"></div>
+
+<div class="actions">
+  <button class="btn-generate" id="btnGenerate" disabled onclick="generateAll()">Generate Captions</button>
+  <button class="btn-post" id="btnPost" disabled onclick="postAll()">Post All</button>
+  <button class="btn-schedule" id="btnSchedule" disabled onclick="toggleScheduleRow()">Schedule</button>
+  <button class="btn-secondary" onclick="resetRun()">New Run</button>
+</div>
+
+<div class="schedule-row" id="scheduleRow">
+  <input type="datetime-local" id="scheduleTime">
+  <button class="btn-schedule" onclick="scheduleAll()">Confirm Schedule</button>
+  <button class="btn-secondary btn-small" onclick="toggleScheduleRow()">Cancel</button>
+</div>
+
+<div class="status-panel" id="statusPanel"></div>
+
+<div class="media-bar">
+  <span id="mediaInfo"></span>
+  <button class="btn-secondary btn-small" onclick="clearMedia()">Clear media</button>
+  <button class="btn-secondary btn-small" onclick="toggleHistory()">History</button>
+</div>
+
+<div class="queue-panel" id="queuePanel"></div>
+<div class="history-panel" id="historyPanel" style="display:none"></div>
+
+<script>
+const state = {
+  accounts: [],
+  // Keyed by slot id; built from /api/accounts in init() — the backend's
+  // ACCOUNT_SLOTS config is the single source of truth for the slot list
+  slots: {},
+};
+
+function emptySlot() {
+  return { file: null, filename: '', mediaType: '', topic: '', caption: '', style: '', prevCaption: '', thumb: '' };
+}
+
+// --- shared fetch and DOM helpers (tech-debt audit FE-2, FE-3, FE-5, FE-8) ---
+
+// Every failing backend response carries FastAPI's {"detail": ...}. This was
+// copy-pasted at six call sites; a seventh forgot it entirely (FE-2).
+async function handleFetchError(resp) {
+  if (resp.ok) return;
+  const err = await resp.json().catch(() => null);
+  throw new Error(err?.detail || `HTTP ${resp.status}`);
+}
+
+// FE-7: no fetch had a timeout, so a hung backend left the UI loading forever
+// with no recovery short of a reload.
+//
+// POST /api/post and POST /api/queue are deliberately NOT wrapped (maintainer
+// decision 2026-07-30). Aborting the client does not stop a browser run that is
+// already driving live accounts, so a spurious abort would show "failed" in the
+// UI while posts keep going — the worst failure mode this tool has. A posting
+// run legitimately takes many minutes; there is no honest ceiling to pick.
+const FETCH_TIMEOUT_MS = 15000;
+// Just outside the backend's own 60s caption budget, so the server's error
+// surfaces instead of the client guessing first.
+const CAPTION_TIMEOUT_MS = 75000;
+
+async function fetchWithTimeout(url, opts = {}, ms = FETCH_TIMEOUT_MS) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctl.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`timed out after ${ms / 1000}s`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Elements that must exist: a missing id is a bug in this file, and naming it
+// beats "Cannot read properties of null" from wherever the value was used
+// (FE-5). Use elOpt where absence is legitimate — status rows, for instance,
+// only exist during a posting run.
+function el(id) {
+  const node = document.getElementById(id);
+  if (!node) throw new Error(`Missing DOM element: #${id}`);
+  return node;
+}
+const elOpt = id => document.getElementById(id);
+
+// Slot-scoped ids are built here instead of interpolated at ~14 handler sites,
+// so renaming one breaks in a single place (FE-8). renderSlots() stays the sole
+// place the literal id strings are written.
+const slotEl = (name, slot) => el(`${name}_${slot}`);
+const slotElOpt = (name, slot) => elOpt(`${name}_${slot}`);
+
+// Identical slot payload for POST /api/post and POST /api/queue, including the
+// per-session headless override that was duplicated with it (FE-3).
+function buildSlotsPayload() {
+  const payload = {
+    slots: Object.entries(state.slots)
+      .filter(([_, s]) => s.filename && s.caption.trim())
+      .map(([slot, s]) => ({
+        slot,
+        filename: s.filename,
+        caption: s.caption,
+        media_type: s.mediaType || 'image',
+      })),
+  };
+  if (state.postMode === 'browser') {
+    payload.headless = state.headlessOverride;
+  }
+  return payload;
+}
+
+// Init: load account names and mode
+async function init() {
+  try {
+    const resp = await fetchWithTimeout('/api/accounts');
+    await handleFetchError(resp);
+    const data = await resp.json();
+    state.accounts = data.accounts;
+    state.sessions = data.sessions || {};
+    state.postMode = data.post_mode || 'mock';
+    state.headless = data.headless;
+    state.captionStyles = data.caption_styles || [];
+    state.defaultCaptionStyle = data.default_caption_style || 'generic';
+    for (const account of state.accounts) {
+      const s = state.slots[account.slot] || (state.slots[account.slot] = emptySlot());
+      if (!s.style) s.style = state.defaultCaptionStyle;
+    }
+
+    // Header badges
+    const badges = el('headerBadges');
+    const modeClass = { mock: 'badge-mock', browser: 'badge-browser', api: 'badge-api' }[data.post_mode] || 'badge-mock';
+    const modeLabel = { mock: 'Mock Mode', browser: 'Browser Mode', api: 'API Mode' }[data.post_mode] || 'Mock Mode';
+    badges.innerHTML = `<span class="badge ${modeClass}">${modeLabel}</span>`;
+
+    if (data.post_mode === 'browser') {
+      state.headlessOverride = !!data.headless;
+      badges.innerHTML += `<span class="badge badge-toggle" id="headlessBadge"
+        onclick="toggleHeadless()" title="Click to toggle for this session"></span>`;
+      renderHeadlessBadge();
+    }
+
+    badges.innerHTML += `<span class="badge queue-badge" id="queueBadge" onclick="toggleQueuePanel()" style="display:none"></span>`;
+    refreshQueue();
+
+    // Status bar with session info
+    if (data.post_mode === 'browser' && Object.keys(state.sessions).length > 0) {
+      const bar = el('statusBar');
+      bar.style.display = '';
+      let html = '<span class="status-bar-section"><span class="label">Sessions</span></span>';
+
+      for (const account of state.accounts) {
+        const s = state.sessions[account.slot];
+        if (!s) continue;
+        const igDot = s.instagram ? 'dot-on' : 'dot-off';
+        const ttDot = s.tiktok ? 'dot-on' : 'dot-off';
+        html += `
+          <span class="status-bar-section">
+            <strong style="color:#ccc">${account.name}</strong>
+            <span class="session-dot"><span class="dot ${igDot}"></span>IG</span>
+            <span class="session-dot"><span class="dot ${ttDot}"></span>TT</span>
+          </span>
+        `;
+      }
+      bar.innerHTML = html;
+    }
+
+    renderSlots();
+    refreshMediaInfo();
+  } catch (e) {
+    // init() builds the whole UI, so a failure here leaves a blank page.
+    // A console line is invisible to someone who isn't looking for it, and
+    // the blank page reads as "still loading" forever (tech-debt audit FE-1).
+    console.error('Failed to load accounts:', e);
+    // elOpt, not el: this is the last-resort renderer, and throwing a second
+    // error from inside the handler would lose the original message entirely.
+    const panel = elOpt('statusPanel');
+    if (panel) {
+      panel.innerHTML = `
+        <div class="status-item status-error">
+          <span class="status-icon">✗</span>
+          <span>Could not load accounts — the UI is not usable.
+          Check that the server is running, then reload.
+          <br><small>${esc(e.message || e)}</small></span>
+        </div>`;
+    }
+  }
+}
+
+function renderHeadlessBadge() {
+  // Optional by design: the badge only exists in browser mode.
+  const badge = elOpt('headlessBadge');
+  if (!badge) return;
+  badge.classList.remove('badge-headless', 'badge-visible');
+  badge.classList.add(state.headlessOverride ? 'badge-headless' : 'badge-visible');
+  badge.textContent = state.headlessOverride ? 'Headless' : 'Visible Browser';
+}
+
+function toggleHeadless() {
+  state.headlessOverride = !state.headlessOverride;
+  renderHeadlessBadge();
+}
+
+function styleOptions(slot) {
+  const current = state.slots[slot].style || state.defaultCaptionStyle;
+  return (state.captionStyles || []).map(st =>
+    `<option value="${esc(st.name)}" ${st.name === current ? 'selected' : ''}>${esc(st.display_name)}</option>`
+  ).join('');
+}
+
+function renderSlots() {
+  const container = el('slotsContainer');
+  container.innerHTML = '';
+
+  for (const account of state.accounts) {
+    const slot = account.slot;
+    const s = state.slots[slot];
+
+    const sess = state.postMode === 'browser' ? state.sessions?.[slot] : null;
+    const sessDots = sess ? `
+        <span class="session-dot"><span class="dot ${sess.instagram ? 'dot-on' : 'dot-off'}"></span>IG</span>
+        <span class="session-dot"><span class="dot ${sess.tiktok ? 'dot-on' : 'dot-off'}"></span>TT</span>` : '';
+
+    const card = document.createElement('div');
+    card.className = 'slot-card';
+    card.innerHTML = `
+      <div class="slot-label">
+        ${esc(account.name)}${sessDots}
+        <span id="mediaTypeBadge_${slot}" class="media-type-badge" style="display:none"></span>
+      </div>
+
+      <div>
+        <div class="drop-zone" id="dropZone_${slot}">
+          <div class="drop-zone-text" id="dropText_${slot}">Drop media here<br>or click to browse</div>
+          <input type="file" accept="image/*,video/*" onchange="handleFile('${slot}', this.files[0])">
+          <div class="upload-progress" id="uploadProg_${slot}"><div class="fill" id="uploadFill_${slot}"></div></div>
+        </div>
+        <div class="thumb-row" id="thumbRow_${slot}" style="display:none">
+          <img class="thumb-chip" id="thumbChip_${slot}" alt="caption frame">
+          <span class="thumb-note">frame the caption AI sees</span>
+        </div>
+      </div>
+
+      <div class="slot-fields">
+        <div>
+          <div class="field-label">Topic / description (optional)</div>
+          <input type="text" id="topic_${slot}" placeholder="e.g. what happens in the clip, who's in it"
+                 oninput="state.slots['${slot}'].topic = this.value; updateButtons()">
+        </div>
+        <div>
+          <div class="field-label">Caption style</div>
+          <select onchange="state.slots['${slot}'].style = this.value">
+            ${styleOptions(slot)}
+          </select>
+        </div>
+        <div>
+          <div class="field-label">Caption</div>
+          <textarea id="caption_${slot}" placeholder="Click Generate to create a caption..."
+                    oninput="state.slots['${slot}'].caption = this.value; autoGrow(this); updateCharCount('${slot}'); updateButtons()"></textarea>
+          <div class="char-count" id="charCount_${slot}">0 / 2200</div>
+          <div class="caption-error" id="captionError_${slot}" style="display:none"></div>
+          <div class="regen-row">
+            <input type="text" id="feedback_${slot}" placeholder="Optional tweak, e.g. 'shorter, punchier'">
+            <button class="btn-secondary btn-small" id="btnRegen_${slot}" onclick="regenerateCaption('${slot}')">Regenerate</button>
+            <button class="btn-secondary btn-small" id="btnUndo_${slot}" style="display:none" onclick="undoCaption('${slot}')">Undo</button>
+          </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+
+    // Drag and drop
+    const dropZone = card.querySelector(`#dropZone_${slot}`);
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(slot, e.dataTransfer.files[0]);
+    });
+  }
+}
+
+// --- Thumbnail capture: a downscaled frame sent with caption requests so
+// the model sees what the clip actually shows. Failure is never fatal —
+// captions just fall back to text-only.
+const THUMB_MAX_EDGE = 512;
+
+function drawThumb(source, width, height) {
+  const scale = Math.min(1, THUMB_MAX_EDGE / Math.max(width, height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.8);
+}
+
+function captureThumbnail(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const done = result => { URL.revokeObjectURL(url); resolve(result); };
+    if (file.type.startsWith('video')) {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.onloadedmetadata = () => {
+        // ~1s in skips black intro frames; clamp for very short clips
+        video.currentTime = Math.min(1, (video.duration || 2) / 2);
+      };
+      video.onseeked = () => {
+        try { done(drawThumb(video, video.videoWidth, video.videoHeight)); }
+        catch (e) { console.error('Thumbnail capture failed:', e); done(''); }
+      };
+      video.onerror = () => done('');
+      video.src = url;
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        try { done(drawThumb(img, img.naturalWidth, img.naturalHeight)); }
+        catch (e) { console.error('Thumbnail capture failed:', e); done(''); }
+      };
+      img.onerror = () => done('');
+      img.src = url;
+    }
+  });
+}
+
+function updateThumbChip(slot) {
+  const row = slotEl('thumbRow', slot);
+  const chip = slotEl('thumbChip', slot);
+  const thumb = state.slots[slot].thumb;
+  if (thumb) {
+    chip.src = thumb;
+    row.style.display = '';
+  } else {
+    chip.removeAttribute('src');
+    row.style.display = 'none';
+  }
+}
+
+async function handleFile(slot, file) {
+  if (!file) return;
+
+  const s = state.slots[slot];
+  s.file = file;
+  s.thumb = '';
+  // A previous generation failure does not describe this file. handleFile
+  // updates the slot in place rather than going through renderSlots(), so the
+  // error line has to be cleared explicitly (review finding, 2026-07-30).
+  setCaptionError(slot, '');
+  updateThumbChip(slot);
+  // Capture in the background; guard against the file being replaced
+  // before the frame is ready
+  captureThumbnail(file).then(dataUrl => {
+    if (s.file === file) {
+      s.thumb = dataUrl;
+      updateThumbChip(slot);
+    }
+  });
+
+  // Show preview
+  const dropZone = slotEl('dropZone', slot);
+  const dropText = slotEl('dropText', slot);
+  dropText.style.display = 'none';
+  dropZone.classList.add('has-file');
+
+  // Remove old preview
+  const oldPreview = dropZone.querySelector('img, video');
+  if (oldPreview) oldPreview.remove();
+
+  if (file.type.startsWith('video')) {
+    const video = document.createElement('video');
+    video.src = URL.createObjectURL(file);
+    video.muted = true;
+    video.loop = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    dropZone.appendChild(video);
+  } else {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    dropZone.appendChild(img);
+  }
+
+  // Upload to backend — XHR so big video uploads show real progress
+  const formData = new FormData();
+  formData.append('file', file);
+  const prog = slotEl('uploadProg', slot);
+  const fill = slotEl('uploadFill', slot);
+  prog.style.display = 'block';
+  fill.style.width = '0%';
+
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/upload/${slot}`);
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) fill.style.width = `${Math.round(e.loaded / e.total * 100)}%`;
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          let detail = null;
+          try { detail = JSON.parse(xhr.responseText).detail; } catch {}
+          reject(new Error(detail || `HTTP ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('network error'));
+      xhr.send(formData);
+    });
+    s.filename = data.filename;
+    s.mediaType = data.media_type;
+
+    const badge = slotEl('mediaTypeBadge', slot);
+    badge.textContent = data.media_type;
+    badge.className = `media-type-badge ${data.media_type}`;
+    badge.style.display = '';
+    refreshMediaInfo();
+  } catch (e) {
+    console.error(`Upload failed for slot ${slot}:`, e);
+    s.filename = '';
+    dropText.style.display = '';
+    dropText.textContent = `Upload failed: ${e.message} — click to retry`;
+  } finally {
+    prog.style.display = 'none';
+  }
+
+  updateButtons();
+}
+
+function updateButtons() {
+  // Global Generate only fills empty caption boxes; redos are per-slot
+  const hasAnyGeneratable = Object.values(state.slots).some(s => s.filename && !s.caption.trim());
+  const hasAnyCaptioned = Object.values(state.slots).some(s => s.filename && s.caption.trim());
+
+  el('btnGenerate').disabled = !hasAnyGeneratable;
+  el('btnPost').disabled = !hasAnyCaptioned;
+  el('btnSchedule').disabled = !hasAnyCaptioned;
+}
+
+// FE-6: a failed generation used to be written as an error string *into the
+// textarea*, where it was indistinguishable from a real caption and could be
+// posted to a live account. Failures now leave the caption empty — which also
+// keeps Post All disabled for that slot — and report themselves beside it.
+function setCaptionError(slot, message) {
+  const node = slotElOpt('captionError', slot);
+  if (!node) return;
+  node.textContent = message ? `✗ ${message}` : '';
+  node.style.display = message ? '' : 'none';
+}
+
+async function generateAll() {
+  const btn = el('btnGenerate');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+
+  const slots = Object.entries(state.slots).filter(([_, s]) => s.filename && !s.caption.trim());
+
+  const promises = slots.map(async ([slot, s]) => {
+    const formData = new FormData();
+    formData.append('media_type', s.mediaType);
+    formData.append('topic', s.topic);
+    formData.append('style', s.style || state.defaultCaptionStyle);
+    if (s.thumb) formData.append('thumbnail', s.thumb);
+
+    try {
+      setCaptionError(slot, '');
+      const resp = await fetchWithTimeout(
+        '/api/generate-caption',
+        { method: 'POST', body: formData },
+        CAPTION_TIMEOUT_MS,
+      );
+      await handleFetchError(resp);
+      const data = await resp.json();
+      s.caption = data.caption;
+      const ta = slotEl('caption', slot);
+      ta.value = s.caption;
+      autoGrow(ta);
+      updateCharCount(slot);
+    } catch (e) {
+      // Deliberately leaves the caption state and the text box untouched (FE-6).
+      console.error(`Caption generation failed for slot ${slot}:`, e);
+      setCaptionError(slot, `Caption generation failed: ${e.message} — try Regenerate`);
+    }
+  });
+
+  await Promise.all(promises);
+
+  btn.textContent = 'Generate Captions';
+  updateButtons();
+}
+
+async function regenerateCaption(slot) {
+  const s = state.slots[slot];
+  if (!s.filename) return;
+  const btn = slotEl('btnRegen', slot);
+  btn.disabled = true;
+  btn.textContent = 'Regenerating…';
+  setCaptionError(slot, '');
+
+  const formData = new FormData();
+  formData.append('media_type', s.mediaType);
+  formData.append('topic', s.topic);
+  formData.append('style', s.style || state.defaultCaptionStyle);
+  formData.append('avoid_caption', s.caption);
+  formData.append('feedback', slotEl('feedback', slot).value);
+  if (s.thumb) formData.append('thumbnail', s.thumb);
+
+  try {
+    const resp = await fetchWithTimeout(
+      '/api/generate-caption',
+      { method: 'POST', body: formData },
+      CAPTION_TIMEOUT_MS,
+    );
+    await handleFetchError(resp);
+    const data = await resp.json();
+    s.prevCaption = s.caption;
+    s.caption = data.caption;
+    const ta = slotEl('caption', slot);
+    ta.value = s.caption;
+    autoGrow(ta);
+    updateCharCount(slot);
+    slotEl('btnUndo', slot).style.display = '';
+    btn.textContent = 'Regenerate';
+  } catch (e) {
+    console.error(`Regenerate failed for slot ${slot}:`, e);
+    // The button label reverts after 2.5s, which is easy to miss on a
+    // multi-slot run; the inline line persists until the next attempt.
+    setCaptionError(slot, `Regenerate failed: ${e.message}`);
+    btn.textContent = 'Failed — retry';
+    setTimeout(() => { btn.textContent = 'Regenerate'; }, 2500);
+  }
+  btn.disabled = false;
+  updateButtons();
+}
+
+function undoCaption(slot) {
+  const s = state.slots[slot];
+  const current = s.caption;
+  s.caption = s.prevCaption || '';
+  s.prevCaption = current; // swap, so Undo doubles as redo
+  const ta = slotEl('caption', slot);
+  ta.value = s.caption;
+  autoGrow(ta);
+  updateCharCount(slot);
+  updateButtons();
+}
+
+// Escape untrusted text (error messages can embed scraped page content)
+// before it goes into innerHTML
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+// Backend post IDs are "..._ok_X" when the success element was seen,
+// "..._unconfirmed_X" when it wasn't (post may or may not be live)
+function platStatus(label, id) {
+  if (!id) return `${label} —`;
+  return id.includes('unconfirmed') ? `${label} ⚠ unconfirmed` : `${label} ✓`;
+}
+
+function isUnconfirmed(id) {
+  return (id || '').includes('unconfirmed');
+}
+
+const CAPTION_LIMIT = 2200;
+
+function updateCharCount(slot) {
+  // Optional: callers fire this during renders where the row may not exist yet.
+  const node = slotElOpt('charCount', slot);
+  if (!node) return;
+  const len = (state.slots[slot].caption || '').length;
+  node.textContent = `${len} / ${CAPTION_LIMIT}`;
+  node.className = 'char-count' + (len > CAPTION_LIMIT ? ' over' : len > CAPTION_LIMIT * 0.9 ? ' warn' : '');
+}
+
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.max(el.scrollHeight, 140) + 'px';
+}
+
+function resetRun() {
+  for (const s of Object.values(state.slots)) {
+    s.file = null;
+    s.filename = '';
+    s.mediaType = '';
+    s.topic = '';
+    s.caption = '';
+    s.prevCaption = '';
+    s.thumb = '';
+    // the chosen caption style is deliberately kept
+  }
+  el('statusPanel').innerHTML = '';
+  renderSlots();
+  updateButtons();
+}
+
+async function refreshMediaInfo() {
+  try {
+    const resp = await fetchWithTimeout('/api/media-info');
+    await handleFetchError(resp);
+    const d = await resp.json();
+    const mb = (d.total_bytes / (1024 * 1024)).toFixed(1);
+    el('mediaInfo').textContent =
+      `Media library: ${d.file_count} file${d.file_count === 1 ? '' : 's'} · ${mb} MB`;
+  } catch (e) {
+    // Cosmetic line; a stale byte count is not worth interrupting the user.
+    console.error('Media info refresh failed:', e);
+  }
+}
+
+async function clearMedia() {
+  if (!confirm('Delete all uploaded copies in media/? Slots will be reset (your original files are untouched).')) return;
+  try {
+    const resp = await fetchWithTimeout('/api/media/clear', { method: 'POST' });
+    await handleFetchError(resp);
+    resetRun();
+    refreshMediaInfo();
+  } catch (e) {
+    alert(`Clear failed: ${e.message}`);
+  }
+}
+
+// History rows are written as UTC by both writers (Phase 2 audit, finding #2).
+// Render them in the viewer's own timezone. Rows written before that fix are
+// naive local time, and JS parses an offset-less timestamp as local, so they
+// keep displaying correctly without rewriting history.jsonl. An unparseable
+// value falls back to the old raw rendering rather than showing "Invalid Date".
+function fmtHistoryTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return ts.replace('T', ' ');
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+       + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+async function toggleHistory() {
+  const panel = el('historyPanel');
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    return;
+  }
+  try {
+    const resp = await fetchWithTimeout('/api/history?limit=25');
+    await handleFetchError(resp);
+    const d = await resp.json();
+    if (!d.entries.length) {
+      panel.innerHTML = '<div class="history-empty">No post history yet.</div>';
+    } else {
+      panel.innerHTML = d.entries.map(en => {
+        const time = esc(fmtHistoryTime(en.ts));
+        const statuses = `${platStatus('IG', en.ig_post_id)}, ${platStatus('TT', en.tt_post_id)}`;
+        const errs = (en.errors && en.errors.length)
+          ? ` — ${esc(en.errors.join('; ').slice(0, 120))}` : '';
+        const mode = en.post_mode !== 'browser'
+          ? `<span class="history-mode">${esc(en.post_mode)}</span>` : '';
+        const sched = en.scheduled ? '<span class="history-scheduled">Scheduled</span>' : '';
+        return `<div class="history-item">
+          <span class="history-time">${time}</span><strong>${esc(en.slot)}</strong>${mode}${sched}
+          · ${esc(en.file || '')} · ${statuses}${errs}
+          <div class="history-caption">${esc((en.caption || '').slice(0, 100))}</div>
+        </div>`;
+      }).join('');
+    }
+    panel.style.display = '';
+  } catch (e) {
+    // FE-1 residual: a console-only catch left the panel apparently stuck
+    // opening, with nothing on screen to explain why.
+    console.error('History load failed:', e);
+    panel.innerHTML = `<div class="history-empty">Could not load history: ${esc(e.message || e)}</div>`;
+    panel.style.display = '';
+  }
+}
+
+// --- live progress polling during a posting run ---
+let progressTimer = null;
+
+function startProgressPolling() {
+  stopProgressPolling();
+  progressTimer = setInterval(async () => {
+    try {
+      const resp = await fetchWithTimeout('/api/post-progress');
+      await handleFetchError(resp);
+      renderProgress(await resp.json());
+    } catch (e) {
+      // Non-fatal: the run continues server-side and the next tick retries.
+      console.error('Progress poll failed:', e);
+    }
+  }, 2000);
+}
+
+function stopProgressPolling() {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+}
+
+function renderProgress(p) {
+  if (!p.active) return;
+  const shortPlat = plat => plat === 'instagram' ? 'IG' : 'TT';
+  const mark = st => st === 'ok' ? '✓' : st === 'unconfirmed' ? '⚠ unconfirmed'
+    : st === 'skipped' ? 'skipped' : '✗';
+
+  for (const slot of Object.keys(state.slots)) {
+    // Optional by design: status rows only exist for slots in the active run.
+    const row = slotElOpt('status', slot);
+    if (!row) continue;
+    const account = state.accounts.find(a => a.slot === slot);
+    const done = (p.events || [])
+      .filter(e => e.slot === slot && e.status !== 'started')
+      .map(e => `${shortPlat(e.platform)} ${mark(e.status)}`);
+    let now = '';
+    if (p.current && p.current.slot === slot) {
+      now = `posting to ${p.current.platform === 'instagram' ? 'Instagram' : 'TikTok'}…`;
+    } else if (p.waiting && p.waiting.slot === slot) {
+      // Account-spacing gap (F4). Without this the run sits silent for
+      // minutes between accounts and looks hung.
+      const s = p.waiting.remaining;
+      const mins = Math.floor(s / 60), secs = s % 60;
+      const clock = mins > 0 ? `${mins}m ${String(secs).padStart(2, '0')}s` : `${secs}s`;
+      now = `pacing before next account — starts in ${clock}…`;
+    } else if (done.length === 0) {
+      now = 'waiting…';
+    }
+    const text = [...done, now].filter(Boolean).join(' · ');
+    row.querySelector('span:last-child').textContent =
+      `${account?.name || slot} — ${text || 'posting…'}`;
+  }
+}
+
+async function postAll() {
+  const btn = el('btnPost');
+  btn.disabled = true;
+  btn.textContent = 'Posting...';
+
+  const statusPanel = el('statusPanel');
+  statusPanel.innerHTML = '';
+
+  // Show pending status for each slot
+  for (const [slot, s] of Object.entries(state.slots)) {
+    if (!s.filename || !s.caption.trim()) continue;
+    const account = state.accounts.find(a => a.slot === slot);
+    statusPanel.innerHTML += `
+      <div class="status-item status-pending" id="status_${slot}">
+        <span class="spinner"></span>
+        <span>${esc(account?.name || slot)} — posting...</span>
+      </div>
+    `;
+  }
+
+  const payload = buildSlotsPayload();
+
+  startProgressPolling();
+
+  try {
+    // Intentionally a bare fetch: see the fetchWithTimeout note above. A live
+    // posting run has no honest client-side ceiling, and aborting here would
+    // not stop it.
+    const resp = await fetch('/api/post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    stopProgressPolling();
+    await handleFetchError(resp);
+    const results = await resp.json();
+
+    for (const result of results) {
+      const row = slotElOpt('status', result.slot);
+      if (!row) continue;
+
+      const account = state.accounts.find(a => a.slot === result.slot);
+      const name = account?.name || result.slot;
+
+      if (result.errors && result.errors.length > 0) {
+        const parts = [];
+        if (result.ig_post_id) parts.push(platStatus('IG', result.ig_post_id));
+        if (result.tt_post_id) parts.push(platStatus('TT', result.tt_post_id));
+
+        row.className = 'status-item status-error';
+        row.innerHTML = `
+          <span class="status-icon">⚠️</span>
+          <span>${esc(name)} — ${parts.join(', ')}${parts.length ? ' | ' : ''}Errors: ${esc(result.errors.join('; '))}</span>
+        `;
+      } else {
+        const anyUnconfirmed = isUnconfirmed(result.ig_post_id) || isUnconfirmed(result.tt_post_id);
+        row.className = anyUnconfirmed ? 'status-item status-error' : 'status-item status-success';
+        row.innerHTML = `
+          <span class="status-icon">${anyUnconfirmed ? '⚠️' : '✓'}</span>
+          <span>${esc(name)} — ${platStatus('IG', result.ig_post_id)}, ${platStatus('TT', result.tt_post_id)}${anyUnconfirmed ? ' (check the platform before reposting)' : ''}</span>
+        `;
+      }
+    }
+  } catch (e) {
+    stopProgressPolling();
+    statusPanel.innerHTML = `
+      <div class="status-item status-error">
+        <span class="status-icon">✗</span>
+        <span>Posting failed: ${esc(e.message)}</span>
+      </div>
+    `;
+  }
+
+  btn.textContent = 'Post All';
+  updateButtons();
+}
+
+// --- scheduling ---
+
+function toggleScheduleRow() {
+  const row = el('scheduleRow');
+  if (row.style.display === 'flex') {
+    row.style.display = 'none';
+    return;
+  }
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 30);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 16);
+  el('scheduleTime').value = local;
+  row.style.display = 'flex';
+}
+
+async function scheduleAll() {
+  const input = el('scheduleTime');
+  if (!input.value) { alert('Pick a date and time first.'); return; }
+
+  const fireTime = new Date(input.value).toISOString();
+
+  const payload = { ...buildSlotsPayload(), fire_time: fireTime };
+
+  try {
+    // Bare fetch, like /api/post: this write is what arms an unattended live
+    // run, so the UI must never report a failure it cannot actually guarantee
+    // (maintainer decision 2026-07-30).
+    const resp = await fetch('/api/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    await handleFetchError(resp);
+    const data = await resp.json();
+    el('scheduleRow').style.display = 'none';
+    const statusPanel = el('statusPanel');
+    const localTime = new Date(data.fire_time).toLocaleString();
+    statusPanel.innerHTML = `
+      <div class="status-item status-success">
+        <span class="status-icon">✓</span>
+        <span>Batch scheduled for ${esc(localTime)}</span>
+      </div>
+    `;
+    refreshQueue();
+  } catch (e) {
+    alert(`Schedule failed: ${e.message}`);
+  }
+}
+
+async function refreshQueue() {
+  try {
+    const resp = await fetchWithTimeout('/api/queue');
+    await handleFetchError(resp);
+    const data = await resp.json();
+    const batches = data.batches || [];
+    const snapshots = await fetchRetainedMedia();
+    const badge = el('queueBadge');
+    const pending = batches.filter(b => b.status === 'pending');
+    const interrupted = batches.filter(b => b.status === 'interrupted');
+    const total = pending.length + interrupted.length + snapshots.length;
+
+    if (total > 0) {
+      let label = '';
+      if (pending.length) label += `${pending.length} scheduled`;
+      if (interrupted.length) label += (label ? ', ' : '') + `${interrupted.length} interrupted`;
+      // Retained media must reach the badge, not just the panel. A partial
+      // batch leaves media behind *and* removes its queue entry, so keying the
+      // badge on batches alone would hide the panel exactly when there is
+      // something in it to review (#4).
+      if (snapshots.length) label += (label ? ', ' : '') + `${snapshots.length} retained media`;
+      badge.textContent = label;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    renderQueuePanel(batches, snapshots);
+  } catch (e) {
+    // FE-1 residual: console-only left an open panel silently stale, which is
+    // exactly the state Issue #7's polling is meant to prevent.
+    console.error('Queue refresh failed:', e);
+    const panel = elOpt('queuePanel');
+    if (panel && panel.style.display === 'block') {
+      panel.innerHTML =
+        `<div style="padding:10px 0;font-size:12px;color:#f87171">Could not load the queue: ${esc(e.message || e)}</div>`;
+    }
+  }
+}
+
+// Retained snapshots are a secondary section of the queue panel, so a failure
+// to load them must never blank the scheduled-batch list that is the panel's
+// primary content. Returns [] on any failure and logs; the batches still render.
+async function fetchRetainedMedia() {
+  try {
+    const resp = await fetchWithTimeout('/api/queue/media');
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    // Only snapshots the maintainer may actually act on. Active batches' media
+    // is listed by the API for completeness and is not shown here.
+    return (data.snapshots || []).filter(s => s.deletable);
+  } catch (e) {
+    console.error('Retained media refresh failed:', e);
+    return [];
+  }
+}
+
+function renderQueuePanel(batches, snapshots) {
+  const panel = el('queuePanel');
+  const retained = snapshots || [];
+  const visible = batches.filter(b => b.status === 'pending' || b.status === 'interrupted');
+  if (!visible.length && !retained.length) {
+    panel.innerHTML = '<div style="padding:10px 0;font-size:12px;color:#666">No scheduled batches.</div>';
+    return;
+  }
+  panel.innerHTML = (visible.length ? visible.map(b => {
+    const slots = (b.slots || []).map(s => s.slot).join(', ');
+    const localTime = new Date(b.fire_time).toLocaleString();
+    const isInt = b.status === 'interrupted';
+    const cls = isInt ? 'queue-item queue-item-interrupted' : 'queue-item';
+    const statusLabel = isInt ? ' [INTERRUPTED]' : '';
+    const actionLabel = isInt ? 'Dismiss' : 'Cancel';
+    return `<div class="${cls}">
+      <span>${esc(localTime)} — slots: ${esc(slots)}${statusLabel}</span>
+      <button class="btn-secondary btn-small" onclick="cancelQueueBatch('${esc(b.id)}')">${actionLabel}</button>
+    </div>`;
+  }).join('') : '') + renderRetainedMedia(retained);
+}
+
+function renderRetainedMedia(snapshots) {
+  if (!snapshots.length) return '';
+  const rows = snapshots.map(s => {
+    const when = s.modified ? new Date(s.modified).toLocaleString() : 'unknown date';
+    const kb = Math.max(1, Math.round((s.size_bytes || 0) / 1024));
+    const files = (s.files || []).length;
+    return `<div class="queue-item queue-item-media">
+      <span>
+        <strong>${esc(s.batch_id.slice(0, 8))}</strong> — ${files} file(s), ${kb} KB, ${esc(when)}
+        <span class="queue-media-reason">${esc(s.reason || '')}</span>
+      </span>
+      <button class="btn-secondary btn-small" onclick="deleteQueueMedia('${esc(s.batch_id)}', '${esc(s.classification)}', '${esc(s.reason || '')}')">Delete media</button>
+    </div>`;
+  }).join('');
+  return `<div class="queue-media-heading">Retained media (${snapshots.length})</div>${rows}`;
+}
+
+// --- queue polling while the panel is open (Issue #7) ---
+// The panel used to fetch only on open and after a local delete, so a batch
+// that fired, was cancelled elsewhere, or came back interrupted stayed visibly
+// stale until the panel was reopened. Polling is bounded by panel visibility:
+// nothing runs while the panel is closed.
+const QUEUE_POLL_MS = 10000;
+let queuePollTimer = null;
+
+function startQueuePolling() {
+  // Clearing first is what keeps repeated open/close cycles from stacking
+  // timers — every start owns at most one interval.
+  stopQueuePolling();
+  queuePollTimer = setInterval(refreshQueue, QUEUE_POLL_MS);
+}
+
+function stopQueuePolling() {
+  if (queuePollTimer) { clearInterval(queuePollTimer); queuePollTimer = null; }
+}
+
+function toggleQueuePanel() {
+  const panel = el('queuePanel');
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+  if (panel.style.display === 'block') {
+    refreshQueue();
+    startQueuePolling();
+  } else {
+    stopQueuePolling();
+  }
+}
+
+async function deleteQueueMedia(batchId, classification, reason) {
+  // Confirmed, never silent: for a partial batch this directory is the only
+  // remaining copy of the media that did not post (#4).
+  //
+  // The prompt carries the snapshot's own classification and reason rather
+  // than one fixed warning, because the two deletable classes fail
+  // differently: 'retained' means a batch already ran and did not fully
+  // succeed, while 'ambiguous' can mean a batch that is being created right
+  // now and has not fired yet. A single "this may have posted partially"
+  // message describes the first and actively misleads about the second
+  // (review 2026-07-30).
+  const warning = classification === 'ambiguous'
+    ? `This snapshot is AMBIGUOUS: it belongs to no batch RicePoster can ` +
+      `account for. That is usually leftover media, but it is also what a ` +
+      `batch still being scheduled looks like — deleting it would stop that ` +
+      `batch from posting.`
+    : `If that batch posted only partially, this is the only copy of the ` +
+      `media still under RicePoster's control. Check the history first.`;
+  if (!confirm(
+      `Delete the retained media for batch ${batchId.slice(0, 8)}?\n\n` +
+      `${reason || classification}\n\n${warning}`)) {
+    return;
+  }
+  try {
+    const resp = await fetchWithTimeout(
+      `/api/queue/media/${encodeURIComponent(batchId)}`, { method: 'DELETE' });
+    await handleFetchError(resp);
+    refreshQueue();
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  }
+}
+
+async function cancelQueueBatch(batchId) {
+  try {
+    const resp = await fetchWithTimeout(
+      `/api/queue/${encodeURIComponent(batchId)}`, { method: 'DELETE' });
+    await handleFetchError(resp);
+    refreshQueue();
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

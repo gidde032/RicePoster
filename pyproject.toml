@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+markers = [
+    "smoke: fast happy-path tests for the core surfaces (6 tests, < 2s)",
+]

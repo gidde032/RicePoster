@@ -1,0 +1,38 @@
+chromium.launch(channel='chrome', headless=True, args=['--disable-blink-features=AutomationControlled', '--disable-infobars', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-zero-copy', '--disable-gpu-sandbox', '--force-gpu-rasterization'])
+browser.new_context(viewport={'width': 1280, 'height': 900})
+context.add_cookies(<1 cookies>)
+context.new_page()
+page.goto('https://www.tiktok.com/upload', wait_until='domcontentloaded', timeout=60000)
+page.wait_for_load_state('domcontentloaded')
+sleep 5.000
+page.url -> 'https://www.tiktok.com/upload'
+page.wait_for_selector("iframe[src*='upload']", timeout=10000)
+page.wait_for_selector("input[type='file']", state='attached', timeout=15000)
+element("input[type='file']").set_input_files('tt_upload_A.mp4')
+sleep 5.000
+locator("button:has-text('Got it'), div[role='button']:has-text('Got it')").first.wait_for(state='visible', timeout=5000)
+locator("div[contenteditable='true']").count() -> 1
+locator("div[contenteditable='true']").first.scroll_into_view_if_needed()
+locator("div[contenteditable='true']").first.focus()
+locator("div[contenteditable='true']").first.click()
+sleep 0.500
+keyboard.press('ControlOrMeta+A')
+keyboard.press('Delete')
+sleep 0.500
+keyboard.insert_text('sunset over the harbour #latergram #goldenhour @studio')
+sleep 0.500
+page.evaluate(js#4880da5c '() => { const selectors = [ \'div[contenteditable="true"]\', \'')
+sleep 1.500
+locator("div[contenteditable='true']").first.inner_text() -> 'sunset over the harbour #latergram #goldenhour @studio'
+locator("button:has-text('Post')").filter(has_not=locator("button:has-text('Cancel'), button:has-text('Save')")).last.count() -> 1
+locator("button:has-text('Post')").filter(has_not=locator("button:has-text('Cancel'), button:has-text('Save')")).last.scroll_into_view_if_needed()
+locator("button:has-text('Post')").filter(has_not=locator("button:has-text('Cancel'), button:has-text('Save')")).last.click()
+sleep 1.500
+locator("div[class*='modal'] button:has-text('Post'), [class*='dialog'] button:has-text('Post')").first.count() -> 1
+locator("div[class*='modal'] button:has-text('Post'), [class*='dialog'] button:has-text('Post')").first.count() -> 1
+locator("div[class*='modal'] button:has-text('Post'), [class*='dialog'] button:has-text('Post')").first.click()
+page.wait_for_selector("input[placeholder*='Search for post description'], span:has-text('Posts (Created on)'), div:has-text('Post successfully uploaded')", timeout=45000)
+context.cookies()
+context.close()
+browser.close()
+RETURN 'tt_post_ok_A'

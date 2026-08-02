@@ -1,0 +1,82 @@
+name: Bug report
+description: Report reproducible incorrect or unsafe RicePoster behavior.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for documenting the problem. Never attach credentials, session
+        data, account identifiers, private captions, or logged-in screenshots.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem
+      description: What went wrong, and what impact did it have?
+      placeholder: A scheduled batch remained visible after it completed.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Give the smallest safe sequence that reproduces the problem.
+      placeholder: |
+        1. Start the app in mock mode.
+        2. Schedule a batch.
+        3. Leave the queue panel open until the batch completes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: evidence_level
+    attributes:
+      label: Evidence level
+      description: What environment produced the report?
+      options:
+        - Source or documentation inspection only
+        - Automated test or offline probe
+        - Mock-mode manual reproduction
+        - Live-platform observation
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: |
+        Include sanitized errors, test output, or screenshots. State explicitly
+        when a claim is inferred rather than measured.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: live_risk
+    attributes:
+      label: Live-account or external-action risk
+      description: Would reproducing or fixing this require real external activity?
+      options:
+        - None; fully offline or mocked
+        - Possible; needs investigation before execution
+        - Yes; requires maintainer approval and controlled validation
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What observable result and regression coverage would close this?
+    validations:
+      required: true

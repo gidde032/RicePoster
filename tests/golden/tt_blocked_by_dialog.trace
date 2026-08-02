@@ -1,0 +1,25 @@
+chromium.launch(channel='chrome', headless=True, args=['--disable-blink-features=AutomationControlled', '--disable-infobars', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-zero-copy', '--disable-gpu-sandbox', '--force-gpu-rasterization'])
+browser.new_context(viewport={'width': 1280, 'height': 900})
+context.add_cookies(<1 cookies>)
+context.new_page()
+page.goto('https://www.tiktok.com/upload', wait_until='domcontentloaded', timeout=60000)
+page.wait_for_load_state('domcontentloaded')
+sleep 5.000
+page.url -> 'https://www.tiktok.com/upload'
+page.wait_for_selector("iframe[src*='upload']", timeout=10000)
+page.wait_for_selector("input[type='file']", state='attached', timeout=15000)
+element("input[type='file']").set_input_files('tt_upload_A.mp4')
+sleep 5.000
+locator("button:has-text('Got it'), div[role='button']:has-text('Got it')").first.wait_for(state='visible', timeout=5000)
+locator("div[contenteditable='true']").count() -> 0
+locator("div[data-placeholder*='caption']").count() -> 0
+locator("div[data-placeholder*='title']").count() -> 0
+locator('div.public-DraftEditor-content').count() -> 0
+locator("[class*='editor-container'] div[role='textbox']").count() -> 0
+page.screenshot(path='debug_tt_post_A.png')
+locator("div.TUXModal-overlay, div[class*='TUXModal']").first.count() -> 1
+locator("div.TUXModal-overlay, div[class*='TUXModal']").first.is_visible() -> True
+locator("div.TUXModal-overlay, div[class*='TUXModal']").first.inner_text() -> 'Turn on automatic content checks?'
+context.close()
+browser.close()
+RAISED Exception: TikTok post failed for A: blocked by a TikTok dialog: "Turn on automatic content checks?" — log into this account in a normal browser, dismiss the dialog once, then retry. Original error: Could not find caption field: all 5 fallback selectors failed. Tried (selector→elements found): "div[contenteditable='true']"→0, "div[data-placeholder*='caption']"→0, "div[data-placeholder*='title']"→0, 'div.public-DraftEditor-content'→0, "[class*='editor-container'] div[role='textbox']"→0

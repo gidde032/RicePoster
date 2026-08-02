@@ -1,0 +1,63 @@
+chromium.launch_persistent_context(user_data_dir='A', headless=True, channel='chrome', viewport={'width': 1512, 'height': 871}, screen={'width': 1512, 'height': 982}, device_scale_factor=2, args=['--disable-blink-features=AutomationControlled', '--disable-features=IsolateOrigins,site-per-process'])
+context.new_page()
+page.goto('https://www.instagram.com/', wait_until='networkidle', timeout=60000)
+sleep 2.000
+page.url -> 'https://www.instagram.com/'
+page.wait_for_selector("button:has-text('Not Now')", timeout=2000)
+element("button:has-text('Not Now')").click()
+sleep 0.500
+page.wait_for_selector("button:has-text('Not now')", timeout=2000)
+page.wait_for_selector("button:has-text('Decline optional cookies')", timeout=2000)
+page.wait_for_selector("button:has-text('Allow essential and optional cookies')", timeout=2000)
+page.evaluate(js#b71a8d51 '() => { const svg = document.querySelector(\'svg[aria-label="') -> 'clicked_a'
+sleep 2.000
+locator("button:has-text('Select from computer')").is_visible() -> False
+page.evaluate(js#77b2acb1 '() => { const links = document.querySelectorAll(\'a[href="#"]') -> 'found: Post'
+sleep 3.000
+locator("div[role='dialog'] input[type='file']").wait_for(state='attached', timeout=20000)
+locator("div[role='dialog'] input[type='file']").set_input_files('2026-07-30_some_long_descriptive_name.mp4')
+sleep 2.000
+page.wait_for_selector("div[role='button']:has-text('Next'), button:has-text('Next')", timeout=120000)
+sleep 1.000
+page.wait_for_selector("button:has-text('OK')", timeout=2000)
+locator("div[role='dialog'] button").filter(has=locator("svg[aria-label='Select crop']")).first.count() -> 1
+locator("div[role='dialog'] button").filter(has=locator("svg[aria-label='Select crop']")).first.scroll_into_view_if_needed()
+locator("div[role='dialog'] button").filter(has=locator("svg[aria-label='Select crop']")).first.click()
+sleep 0.500
+locator("button:has-text('Original')").count() -> 1
+locator("button:has-text('Original')").click()
+sleep 1.000
+page.wait_for_selector("div[role='button']:has-text('Next'), button:has-text('Next')", timeout=5000)
+element("div[role='button']:has-text('Next'), button:has-text('Next')").click()
+sleep 2.000
+page.wait_for_selector("div[role='button']:has-text('Next'), button:has-text('Next')", timeout=5000)
+element("div[role='button']:has-text('Next'), button:has-text('Next')").click()
+sleep 2.000
+page.wait_for_selector("div[role='button']:has-text('Next'), button:has-text('Next')", timeout=5000)
+element("div[role='button']:has-text('Next'), button:has-text('Next')").click()
+sleep 2.000
+locator("div[aria-label='Write a caption...']").count() -> 1
+locator("div[aria-label='Write a caption...']").first.scroll_into_view_if_needed()
+locator("div[aria-label='Write a caption...']").first.focus()
+locator("div[aria-label='Write a caption...']").first.click()
+sleep 0.500
+locator("div[aria-label='Write a caption...']").first.press_sequentially('sunset over ', delay=60)
+sleep 0.050
+locator("div[aria-label='Write a caption...']").first.press_sequentially('the ', delay=60)
+sleep 0.050
+locator("div[aria-label='Write a caption...']").first.press_sequentially('harbour ', delay=60)
+sleep 0.050
+locator("div[aria-label='Write a caption...']").first.press_sequentially('#latergram ', delay=60)
+sleep 0.050
+locator("div[aria-label='Write a caption...']").first.press_sequentially('#goldenhour @studio', delay=60)
+sleep 0.500
+page.evaluate(js#7098e284 '() => { const selectors = [ \'div[aria-label="Write a caption')
+sleep 1.500
+locator("div[aria-label='Write a caption...']").first.inner_text() -> 'sunset over the harbour #latergram #goldenhour @studio'
+locator("div[role='dialog']").locator("div[role='button']", has_text='Share').count() -> 1
+locator("div[role='dialog']").locator("div[role='button']", has_text='Share').scroll_into_view_if_needed()
+locator("div[role='dialog']").locator("div[role='button']", has_text='Share').click()
+page.wait_for_selector("img[alt='Animated checkmark'], span:has-text('shared'), span:has-text('Post shared'), span:has-text('Reel shared')", timeout=180000)
+sleep 10.000
+context.close()
+RETURN 'ig_post_unconfirmed_A'

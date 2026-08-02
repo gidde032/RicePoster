@@ -1,0 +1,86 @@
+name: Planned work
+description: Propose an enhancement, maintenance task, investigation, or documentation change.
+title: ""
+labels:
+  - needs-decision
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for durable candidates as well as ready work. Candidates
+        remain unmilestoned until the maintainer selects them for a release.
+        Never include credentials, session data, private captions, account
+        identifiers, or logged-in screenshots.
+
+  - type: dropdown
+    id: work_type
+    attributes:
+      label: Work type
+      options:
+        - Enhancement
+        - Maintenance
+        - Investigation
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What is missing, fragile, costly, or hard to understand?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the user-visible or operational result, not an implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Provenance and current evidence
+      description: |
+        Name the audit, roadmap entry, incident, user observation, or code
+        location that produced this candidate. Separate measured facts from
+        hypotheses.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_scope
+    attributes:
+      label: Proposed scope
+      description: What belongs in this issue, and what explicitly does not?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: live_risk
+    attributes:
+      label: Live-account or external-action risk
+      options:
+        - None; fully offline or mocked
+        - Possible; investigate offline first
+        - Yes; requires maintainer approval and controlled validation
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable completion conditions, including tests where applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation impact
+      description: Which user, contract, state, roadmap, or workflow documents may change?
+    validations:
+      required: true
