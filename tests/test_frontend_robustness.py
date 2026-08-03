@@ -19,11 +19,11 @@ originals also survive is the failure mode these issues were filed about.
 import re
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
+
 INDEX_HTML = PROJECT_ROOT / "frontend" / "index.html"
 
 

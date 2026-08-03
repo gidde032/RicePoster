@@ -15,11 +15,10 @@ spec-drift lens and user-friction lens (findings #7, #15, #16, #17).
 
 import re
 import warnings
-from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
 
 # The smoke-tier execution budget, asserted for real in test_gates.py. Every
 # document that quotes a number must quote this one. Sourced from the enforced

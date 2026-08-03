@@ -14,7 +14,7 @@ import pytest
 import backend.main as main
 from backend import captions
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
 SEED_STYLES = {"meme-humor", "sports", "generic", "music-fanpage"}
 
 
@@ -187,8 +187,8 @@ def test_generate_endpoint_passes_avoid_and_feedback(client, monkeypatch):
     assert seen == {"avoid": "prev cap", "feedback": "funnier"}
 
 
-def test_frontend_regenerate_wiring():
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+def test_frontend_regenerate_wiring(frontend_src):
+    html = frontend_src
     assert "regenerateCaption" in html
     assert "undoCaption" in html
     assert "avoid_caption" in html
@@ -199,8 +199,8 @@ def test_frontend_regenerate_wiring():
 
 # --- frontend wiring (source-level) ------------------------------------------
 
-def test_frontend_has_per_slot_style_selector():
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+def test_frontend_has_per_slot_style_selector(frontend_src):
+    html = frontend_src
     assert "Caption style" in html
     assert "styleOptions" in html
     assert "formData.append('style'" in html

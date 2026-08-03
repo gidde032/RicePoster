@@ -23,8 +23,13 @@ from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT_PATH = Path(__file__).parent.parent
-PROJECT_ROOT = str(PROJECT_ROOT_PATH)
+from tests.paths import PROJECT_ROOT
+
+# PROJECT_ROOT is a Path here, as everywhere else. An earlier revision kept a
+# separate `str` form for the `subprocess.run(cwd=...)` calls below, but `cwd`
+# accepts a Path (as test_caption_styles and test_review_fixes_mvp already rely
+# on), so the divergence was needless and has been collapsed. `Path` is still
+# imported for the `_junit_suite_seconds(xml_path: Path)` annotation.
 
 COVERAGE_FLOOR = 43
 
@@ -244,7 +249,7 @@ def test_smoke_budget_fails_loudly_on_an_unreadable_report(tmp_path):
 
 def _pre_push_entry() -> str:
     """The command string the pre-push hook actually runs."""
-    config = (PROJECT_ROOT_PATH / ".pre-commit-config.yaml").read_text()
+    config = (PROJECT_ROOT / ".pre-commit-config.yaml").read_text()
     # Split on hook boundaries ("- id:") and return the block for pytest-full.
     blocks = config.split("- id:")
     matching = [b for b in blocks if b.lstrip().startswith("pytest-full")]
@@ -256,7 +261,7 @@ def _pre_push_entry() -> str:
 
 def _ci_workflow() -> str:
     """Return the tracked clean-environment gate."""
-    path = PROJECT_ROOT_PATH / ".github" / "workflows" / "ci.yml"
+    path = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
     assert path.exists(), "GitHub Actions CI workflow is missing"
     return path.read_text()
 
@@ -315,7 +320,7 @@ def test_coverage_floor_matches_documentation():
 
     # CLAUDE.md is gitignored (local-only agent doc), so it is absent from a
     # fresh clone. Check it when present rather than failing on its absence.
-    claude_md_path = PROJECT_ROOT_PATH / "CLAUDE.md"
+    claude_md_path = PROJECT_ROOT / "CLAUDE.md"
     if claude_md_path.exists():
         assert f"--cov-fail-under={COVERAGE_FLOOR}" in claude_md_path.read_text(), (
             f"CLAUDE.md § Quality gates no longer documents a {COVERAGE_FLOOR}% "
@@ -350,7 +355,7 @@ def test_handoff_stays_within_its_budget():
     If this fails, route the excess rather than raising the number. Raising it
     is a deliberate maintainer decision, not a way to make the test pass.
     """
-    handoff = PROJECT_ROOT_PATH / "handoff.md"
+    handoff = PROJECT_ROOT / "handoff.md"
     if not handoff.exists():
         pytest.skip("handoff.md is gitignored and absent from this checkout")
 
@@ -376,7 +381,7 @@ def test_suite_does_not_read_the_maintainers_credentials_env():
     Checks the observable effect — no credentials.env key reached os.environ —
     rather than config.UNDER_PYTEST, which would only restate the flag.
     """
-    env_path = PROJECT_ROOT_PATH / "credentials.env"
+    env_path = PROJECT_ROOT / "credentials.env"
     if not env_path.exists():
         # Fresh clone: nothing to leak. The invariant holds trivially.
         return
