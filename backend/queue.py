@@ -4,6 +4,7 @@ DESIGN-scheduling.md §5a–5b. queue.jsonl holds only pending/running/interrupt
 batches; terminal states are pruned after results land in history.jsonl.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -41,6 +42,31 @@ _REPORTED_SLOT_KEYS: set[str] = set()
 
 # Same once-per-process rule for top-level batch fields (#46).
 _REPORTED_BATCH_KEYS: set[str] = set()
+
+
+@dataclass
+class MalformedLine:
+    """One queue line that could not be parsed (#35).
+
+    Carries only safe facts: the 1-based line number, the exception type name,
+    and a short fingerprint of the raw content (held internally for de-dup,
+    never surfaced in a notification). Raw line content is deliberately NOT a
+    field — a malformed queue line very likely holds caption text, and the
+    entire notification boundary is redaction-clean (FR-6, the
+    `_notification_safe` layer in poster_browser.py).
+    """
+    line_no: int
+    error: str
+    fingerprint: str
+
+
+# Malformed lines seen this process but not yet drained by the scheduler, in
+# encounter order. Each distinct line is appended ONCE: `_reported_fingerprints`
+# below dedups across the constant re-reads of the queue (~4 per batch plus
+# every 30s poll), so a single bad line cannot storm the notifier (#35,
+# notification-storm trap — same rationale as _REPORTED_SLOT_KEYS above).
+_PENDING_MALFORMED: list[MalformedLine] = []
+_REPORTED_FINGERPRINTS: set[str] = set()
 
 
 def _slot_from_dict(s: dict) -> SlotBatch:
@@ -133,21 +159,51 @@ def _load_queue_detailed(queue_file: Path | None = None
     batches = []
     unparseable = 0
     for i, line in enumerate(qf.read_text().splitlines(), 1):
-        line = line.strip()
-        if not line:
+        stripped = line.strip()
+        if not stripped:
             continue
         try:
-            batches.append(QueuedBatch.from_dict(json.loads(line)))
+            batches.append(QueuedBatch.from_dict(json.loads(stripped)))
         except Exception as e:
             unparseable += 1
             _log.error(f"[queue] ERROR: malformed line {i} in {qf.name}, skipping: {e}")
+            # Record for the scheduler to push, once per distinct line per
+            # process. The fingerprint is sha1 of the raw content and lives
+            # only here for de-dup — it is never put in a notification body
+            # (#35, caption-leak trap). A bad line is re-read on every poll
+            # until the next save_queue rewrite drops it, so without this guard
+            # the same line would push thousands of times a day.
+            fingerprint = hashlib.sha1(stripped.encode("utf-8",
+                                                      errors="replace")).hexdigest()[:16]
+            if fingerprint not in _REPORTED_FINGERPRINTS:
+                _REPORTED_FINGERPRINTS.add(fingerprint)
+                _PENDING_MALFORMED.append(
+                    MalformedLine(line_no=i, error=type(e).__name__, fingerprint=fingerprint))
     return batches, unparseable
 
 
 def load_queue(queue_file: Path | None = None) -> list[QueuedBatch]:
     """Load all batches from the queue file. Malformed lines are logged and
-    skipped — never rewritten as a side effect of loading."""
+    skipped — never rewritten as a side effect of loading.
+
+    A side effect, not a return value: malformed lines are also recorded for
+    the scheduler to push (see `drain_malformed_reports`). The signature stays
+    `list[QueuedBatch]` so the ~10 call sites are undisturbed; the scheduler,
+    which is async and already owns notification, drains the side channel and
+    sends the push (#35, layering trap)."""
     return _load_queue_detailed(queue_file)[0]
+
+
+def drain_malformed_reports() -> list[MalformedLine]:
+    """Return and clear malformed-line reports accumulated by load_queue.
+
+    Each distinct line is reported once per process (dedup at append time), so
+    a caller that drains every cycle sends at most one push per distinct bad
+    line for the life of the server. The scheduler calls this after its
+    load_queue reads."""
+    reports = list(_PENDING_MALFORMED)
+    _PENDING_MALFORMED.clear()
+    return reports
 
 
 def save_queue(batches: list[QueuedBatch], queue_file: Path | None = None):

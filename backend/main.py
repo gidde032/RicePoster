@@ -20,6 +20,7 @@ from backend.config import (
 )
 from backend.models import (
     CaptionRequest, PostRequest, PostResult, RescheduleRequest, ScheduleRequest,
+    MAX_CAPTION_LENGTH,
 )
 from backend.captions import generate_caption, load_styles, DEFAULT_STYLE
 from backend.poster import post_all as post_all_api
@@ -170,6 +171,9 @@ async def list_accounts():
             for s in load_styles().values()
         ],
         "default_caption_style": DEFAULT_STYLE,
+        # Served so the frontend's char counter shares the backend's single
+        # source of truth rather than carrying a divergent copy (#53).
+        "caption_limit": MAX_CAPTION_LENGTH,
     }
 
 

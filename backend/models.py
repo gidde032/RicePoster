@@ -1,11 +1,29 @@
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 # Accepted media kinds for caption generation. Previously unvalidated: an
 # unknown value reached generate_caption and shaped a prompt from nonsense
 # instead of failing with a 422 that names the field (#33).
 MEDIA_TYPES = ("video", "image")
+
+# Caption length cap, validated at the API boundary so an over-length caption
+# is rejected (422) before any browser work starts (#53, maintainer decision
+# 2026-08-03, option 1). Previously Instagram read back truncated text and
+# abandoned the post after the media had already uploaded.
+#
+# A SINGLE limit is used even though Instagram's real cap is ~2200 and
+# TikTok's differs, because in practice captions are AI-generated and short
+# and no platform cap has actually been hit on TikTok. Per-platform constants
+# are DEFERRED until a platform cap actually differs in practice — this is a
+# decision, not an oversight. When that day comes, split this into a
+# per-platform map and validate against the slot's target platforms.
+#
+# This is the single source of truth: it is served to the frontend via
+# GET /api/accounts (`caption_limit`) so the UI's live char counter cannot
+# drift from the value the backend enforces (#53, the duplicated-constant
+# trap pending-lessons.md records from the smoke-budget test).
+MAX_CAPTION_LENGTH = 2200
 
 
 # Two layers check fire_time, and they deliberately require different lead
@@ -89,6 +107,22 @@ class PostSlot(BaseModel):
     filename: str
     caption: str
     media_type: str = "image"
+
+    @model_validator(mode="after")
+    def _caption_within_limit(self):
+        """Reject an over-length caption before any browser work starts (#53).
+
+        A model-level validator (not a field validator) so the message can name
+        the slot as well as the limit. Applies to both POST /api/post and
+        POST /api/queue, which both build PostSlots — so a too-long caption is
+        a 422 at the request boundary and never reaches a posting run.
+        """
+        if len(self.caption) > MAX_CAPTION_LENGTH:
+            raise ValueError(
+                f"Slot {self.slot}: caption is {len(self.caption)} characters, "
+                f"exceeds the {MAX_CAPTION_LENGTH}-character limit."
+            )
+        return self
 
 
 class PostRequest(BaseModel):
