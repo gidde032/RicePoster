@@ -15,7 +15,22 @@ and its blocker #60.
   neutral `generic`.
   ([#50](https://github.com/gidde032/RicePoster/issues/50))
 
+- The test suite's duplicated `PROJECT_ROOT` constant is consolidated into one
+  `tests/paths.py` definition, and inline `frontend/index.html` reads now share
+  the `frontend_src` fixture. Internal test hygiene only — no behaviour or
+  assertion changed.
+  ([#57](https://github.com/gidde032/RicePoster/issues/57),
+  [#68](https://github.com/gidde032/RicePoster/issues/68))
+
 ### Fixed
+
+- The frontend's text-escaping helper (`esc`) was also used inside HTML
+  attribute contexts, where it did not escape quote characters and so could not
+  prevent a value from breaking out of the attribute. A separate `escAttr`
+  helper now serves those sites. Not exploitable today (the affected values are
+  hex batch IDs and maintainer-authored style names), but the safety lived in
+  other files; this closes the latent gap.
+  ([#41](https://github.com/gidde032/RicePoster/issues/41))
 
 - The smoke-tier speed gate no longer flakes under machine load. It timed the
   wall-clock of a cold `pytest` subprocess, so roughly 80% of what it measured
