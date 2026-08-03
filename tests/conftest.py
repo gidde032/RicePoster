@@ -305,6 +305,13 @@ def tmp_queue_paths(monkeypatch, tmp_path):
     monkeypatch.setattr(queue_mod, "QUEUE_FILE", tmp_path / "queue.jsonl")
     monkeypatch.setattr(queue_mod, "HISTORY_FILE", tmp_path / "history.jsonl")
     monkeypatch.setattr(queue_mod, "QUEUE_MEDIA_DIR", tmp_path / "queue_media")
+    # The malformed-line report channel (#35) is module-level state that
+    # survives across tests in one process: a prior test's bad line would
+    # otherwise either block an identical bad line in this test from reporting
+    # (fingerprint dedup) or leak into a scheduler test's notifier drain.
+    # Reset both, like the run-guard fixture resets its process-global flag.
+    queue_mod._PENDING_MALFORMED.clear()
+    queue_mod._REPORTED_FINGERPRINTS.clear()
 
 
 @pytest.fixture(autouse=True)

@@ -7,6 +7,18 @@ and its blocker #60.
 
 ### Changed
 
+- Over-length captions are now rejected at the API boundary before any browser
+  work starts. Previously an Instagram caption past its ~2200-character cap was
+  silently truncated by the editor, and the caption read-back check then failed
+  to match and abandoned the post *after* the media had already uploaded — so
+  the failure moved from "publishes truncated" to "publishes nothing". A single
+  `MAX_CAPTION_LENGTH = 2200` limit is enforced on the request model (covering
+  both `POST /api/post` and `POST /api/queue`), and the value is served to the
+  frontend via `GET /api/accounts` so the live char counter shares the backend's
+  single source of truth. Per-platform limits are deferred until a platform cap
+  actually differs in practice.
+  ([#53](https://github.com/gidde032/RicePoster/issues/53))
+
 - The repository is being prepared for public release. Documentation and
   caption prompts are now local-by-default: `.gitignore` allowlists the four
   public documents and the four generic seed caption styles, so a new internal
@@ -23,6 +35,23 @@ and its blocker #60.
   [#68](https://github.com/gidde032/RicePoster/issues/68))
 
 ### Fixed
+
+- A slot with media but no caption is now visibly marked as skipped in the UI
+  before a run begins, instead of being silently omitted server-side and
+  leaving the run looking incomplete or failed. The run still proceeds for the
+  remaining slots; there is no block or confirmation.
+  ([#24](https://github.com/gidde032/RicePoster/issues/24))
+
+- A malformed `queue.jsonl` line is now reported via a push notification instead
+  of only a console print nobody watches. The loss is accepted (a dropped
+  scheduled batch is re-creatable in the UI in seconds); the gap was that the
+  only record was a print on an unattended machine, and the bad line was
+  silently dropped on the next queue rewrite. The notification names only the
+  line number and file — never the raw line content, which likely holds caption
+  text — and is de-duplicated once per distinct line per process so the constant
+  queue re-reads cannot storm the notifier. Unparseable lines still suspend
+  automatic media-snapshot deletion (FR-17c).
+  ([#35](https://github.com/gidde032/RicePoster/issues/35))
 
 - The frontend's text-escaping helper (`esc`) was also used inside HTML
   attribute contexts, where it did not escape quote characters and so could not

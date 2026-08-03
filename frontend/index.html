@@ -392,6 +392,7 @@
   .status-success .status-icon { color: #4ade80; }
   .status-error .status-icon { color: #f87171; }
   .status-pending .status-icon { color: #fbbf24; }
+  .status-skipped .status-icon { color: #9ca3af; }
 
   .spinner {
     display: inline-block;
@@ -558,6 +559,10 @@ const state = {
   // Keyed by slot id; built from /api/accounts in init() — the backend's
   // ACCOUNT_SLOTS config is the single source of truth for the slot list
   slots: {},
+  // Caption length cap, served by /api/accounts so the char counter and the
+  // backend validator share one value (#53). Fallback only until init()
+  // resolves; the authoritative value is the backend's MAX_CAPTION_LENGTH.
+  captionLimit: 2200,
 };
 
 function emptySlot() {
@@ -648,6 +653,7 @@ async function init() {
     state.headless = data.headless;
     state.captionStyles = data.caption_styles || [];
     state.defaultCaptionStyle = data.default_caption_style || 'generic';
+    if (typeof data.caption_limit === 'number') state.captionLimit = data.caption_limit;
     for (const account of state.accounts) {
       const s = state.slots[account.slot] || (state.slots[account.slot] = emptySlot());
       if (!s.style) s.style = state.defaultCaptionStyle;
@@ -1107,15 +1113,21 @@ function isUnconfirmed(id) {
   return (id || '').includes('unconfirmed');
 }
 
+// Caption length cap. `state.captionLimit` is the authoritative value (served
+// by /api/accounts from the backend's MAX_CAPTION_LENGTH, #53); this local
+// constant is only the fallback before init() resolves and is intentionally
+// the same literal so the counter cannot diverge while loading.
 const CAPTION_LIMIT = 2200;
+function captionLimit() { return state.captionLimit || CAPTION_LIMIT; }
 
 function updateCharCount(slot) {
   // Optional: callers fire this during renders where the row may not exist yet.
   const node = slotElOpt('charCount', slot);
   if (!node) return;
+  const limit = captionLimit();
   const len = (state.slots[slot].caption || '').length;
-  node.textContent = `${len} / ${CAPTION_LIMIT}`;
-  node.className = 'char-count' + (len > CAPTION_LIMIT ? ' over' : len > CAPTION_LIMIT * 0.9 ? ' warn' : '');
+  node.textContent = `${len} / ${limit}`;
+  node.className = 'char-count' + (len > limit ? ' over' : len > limit * 0.9 ? ' warn' : '');
 }
 
 function autoGrow(el) {
@@ -1281,6 +1293,20 @@ async function postAll() {
 
   // Show pending status for each slot
   for (const [slot, s] of Object.entries(state.slots)) {
+    // A slot with media but no caption is skipped server-side (FR-3); surface
+    // it BEFORE posting begins so the run does not look incomplete or failed.
+    // The run still proceeds for the valid slots — no block, no confirmation
+    // (#24, maintainer decision 2026-08-03).
+    if (s.filename && !s.caption.trim()) {
+      const account = state.accounts.find(a => a.slot === slot);
+      statusPanel.innerHTML += `
+        <div class="status-item status-skipped" id="status_${slot}">
+          <span class="status-icon">⊘</span>
+          <span>${esc(account?.name || slot)} — skipped: no caption</span>
+        </div>
+      `;
+      continue;
+    }
     if (!s.filename || !s.caption.trim()) continue;
     const account = state.accounts.find(a => a.slot === slot);
     statusPanel.innerHTML += `
