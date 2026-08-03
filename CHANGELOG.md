@@ -2,8 +2,30 @@
 
 ## [Unreleased]
 
-Nothing yet. Work toward `v1.0.0 — Public release` is tracked on that
-milestone; see #50 and its blocker #60.
+Work toward `v1.0.0 — Public release` is tracked on that milestone; see #50
+and its blocker #60.
+
+### Changed
+
+- The repository is being prepared for public release. Documentation and
+  caption prompts are now local-by-default: `.gitignore` allowlists the four
+  public documents and the four generic seed caption styles, so a new internal
+  document or a personal caption style is ignored the moment it is created
+  rather than needing to be remembered. The default caption style is the
+  neutral `generic`.
+  ([#50](https://github.com/gidde032/RicePoster/issues/50))
+
+### Fixed
+
+- The smoke-tier speed gate no longer flakes under machine load. It timed the
+  wall-clock of a cold `pytest` subprocess, so roughly 80% of what it measured
+  was interpreter startup, plugin loading and collection of the full suite —
+  it breached its own 2s budget on an idle machine while the six smoke tests
+  executed in 0.27s. It now reads execution time from pytest's JUnit XML
+  report against a 1.5s budget, with a deliberately loose 10s wall-clock
+  ceiling that only detects hangs.
+  ([#13](https://github.com/gidde032/RicePoster/issues/13),
+  [#44](https://github.com/gidde032/RicePoster/issues/44))
 
 ## [0.4.0] — 2026-07-31
 
