@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,16 @@ PROJECT_ROOT = str(PROJECT_ROOT_PATH)
 COVERAGE_FLOOR = 43
 
 SMOKE_TEST_COUNT = 6
+
+# The smoke tier's execution budget, excluding interpreter startup, plugin
+# loading and collection. Baseline is ~0.3s (2026-08-02), so this leaves ~4x
+# headroom for a loaded machine while still catching a real regression.
+SMOKE_EXECUTION_BUDGET_S = 1.5
+
+# Wall-clock ceiling for the whole subprocess. A hang detector, not a budget:
+# the tier executes in ~0.3s, so anything approaching this is an environment
+# failure. Kept deliberately loose — the tight version was the flake.
+SMOKE_WALL_CLOCK_CEILING_S = 10.0
 
 
 def _collected_node_ids(stdout: str) -> list[str]:
@@ -114,16 +125,121 @@ def test_smoke_count_survives_a_reformatted_pytest_summary():
     )
 
 
-def test_smoke_tier_runs_under_budget():
-    """The smoke suite must complete in under 2 seconds."""
+def _junit_suite_seconds(xml_path: Path) -> float:
+    """Execution time of a pytest run, from its JUnit XML report.
+
+    Read from structured output rather than the summary sentence. Two reasons,
+    and the second is the one that motivated the rewrite (#13, #44):
+
+    1. `_collected_node_ids` above exists because a gate once parsed pytest's
+       prose. Adding a *second* prose parser to the same file would reintroduce
+       exactly the coupling TS-3 removed. The `time` attribute is part of the
+       JUnit schema, which pytest does not reword between releases.
+    2. The summary's `in 0.27s` and the subprocess wall-clock measure different
+       things. The old gate timed the wall-clock of a cold subprocess, so it
+       was dominated by interpreter startup, plugin loading and full-suite
+       collection — measured 2026-08-02 at 0.97-2.36s across five *idle* runs
+       for a tier that executes in 0.27s. Roughly 80% of the gate was
+       process-spawn noise, and it breached the 2s budget on an unloaded
+       machine.
+
+    Raises rather than returning a sentinel: a report this cannot read means
+    the measurement did not happen, and a speed gate that silently passes when
+    it cannot measure is worse than no gate.
+    """
+    root = ET.parse(xml_path).getroot()
+    suite = root if root.tag == "testsuite" else root.find("testsuite")
+    assert suite is not None, f"No <testsuite> element in JUnit report:\n{xml_path.read_text()}"
+    seconds = suite.get("time")
+    assert seconds is not None, "JUnit <testsuite> carries no time attribute"
+    return float(seconds)
+
+
+def test_smoke_tier_runs_under_budget(tmp_path):
+    """The smoke tier's *execution* must stay fast.
+
+    Two assertions measuring two different failures:
+
+    - `SMOKE_EXECUTION_BUDGET_S` is the real gate. It covers test execution
+      only, so it catches a genuine regression in the tier and is largely
+      immune to machine load. Baseline is ~0.3s, so the budget leaves roughly
+      4x headroom.
+    - `SMOKE_WALL_CLOCK_CEILING_S` is deliberately loose and only catches a
+      hang or a pathological environment. It is not a performance budget;
+      do not tighten it to make it "meaningful". Its looseness is the point —
+      the tight version was the flake (#13, #44).
+
+    The JUnit report goes to `tmp_path`, never the project tree: it records
+    the machine's hostname, which must not become a committable file.
+    """
+    report = tmp_path / "smoke-junit.xml"
     start = time.monotonic()
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-m", "smoke", "-q"],
-        capture_output=True, cwd=PROJECT_ROOT,
+        [sys.executable, "-m", "pytest", "-m", "smoke", "-q",
+         "--junit-xml", str(report)],
+        capture_output=True, text=True, cwd=PROJECT_ROOT,
     )
     elapsed = time.monotonic() - start
     assert result.returncode == 0, f"Smoke suite failed:\n{result.stderr}"
-    assert elapsed < 2.0, f"Smoke suite took {elapsed:.1f}s, budget is 2s"
+
+    assert elapsed < SMOKE_WALL_CLOCK_CEILING_S, (
+        f"Smoke run took {elapsed:.1f}s wall-clock, ceiling is "
+        f"{SMOKE_WALL_CLOCK_CEILING_S}s. This is a hang detector, not a speed "
+        "budget — suspect the environment, not the tier."
+    )
+
+    executed = _junit_suite_seconds(report)
+    assert executed < SMOKE_EXECUTION_BUDGET_S, (
+        f"Smoke tier executed in {executed:.2f}s, budget is "
+        f"{SMOKE_EXECUTION_BUDGET_S}s. Unlike the old wall-clock gate this "
+        "excludes interpreter startup and collection, so a breach here is a "
+        "real regression in the tier."
+    )
+
+
+def test_smoke_budget_reads_structured_timing_not_prose(tmp_path):
+    """#13/#44: the speed gate must not parse pytest's summary sentence.
+
+    Feeds a JUnit report whose `time` attribute is unambiguous, and confirms
+    the parser reads it. Then shows the failure mode this replaced: the
+    summary sentence a prose parser would have read reports a *different*
+    number — wall-clock including startup — so the two disagree by design, and
+    a prose-based gate measures the machine rather than the tier.
+    """
+    report = tmp_path / "report.xml"
+    report.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<testsuites name="pytest tests"><testsuite name="pytest" errors="0" '
+        'failures="0" skipped="0" tests="6" time="0.322">'
+        '<testcase classname="tests.test_api" name="test_serve_ui" time="0.013" />'
+        "</testsuite></testsuites>"
+    )
+    assert _junit_suite_seconds(report) == pytest.approx(0.322)
+
+    prose = "6 passed, 798 deselected in 2.36s\n"
+    prose_number = float(re.search(r"in (\d+\.\d+)s", prose).group(1))
+    assert prose_number > _junit_suite_seconds(report) * 5, (
+        "the summary sentence and the execution time are not the same "
+        "measurement; that gap is why the old gate flaked"
+    )
+
+
+def test_smoke_budget_fails_loudly_on_an_unreadable_report(tmp_path):
+    """A speed gate that cannot measure must fail, not silently pass.
+
+    The tempting shortcut is to return 0.0 when the report is missing a
+    `time` attribute, which would make every future run pass regardless of
+    how slow the tier became.
+    """
+    missing_attr = tmp_path / "no-time.xml"
+    missing_attr.write_text('<testsuite name="pytest" tests="6"></testsuite>')
+    with pytest.raises(AssertionError, match="no time attribute"):
+        _junit_suite_seconds(missing_attr)
+
+    wrong_shape = tmp_path / "wrong.xml"
+    wrong_shape.write_text("<something-else />")
+    with pytest.raises(AssertionError, match="No <testsuite> element"):
+        _junit_suite_seconds(wrong_shape)
 
 
 def _pre_push_entry() -> str:
