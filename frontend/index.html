@@ -730,7 +730,7 @@ function toggleHeadless() {
 function styleOptions(slot) {
   const current = state.slots[slot].style || state.defaultCaptionStyle;
   return (state.captionStyles || []).map(st =>
-    `<option value="${esc(st.name)}" ${st.name === current ? 'selected' : ''}>${esc(st.display_name)}</option>`
+    `<option value="${escAttr(st.name)}" ${st.name === current ? 'selected' : ''}>${esc(st.display_name)}</option>`
   ).join('');
 }
 
@@ -1075,11 +1075,25 @@ function undoCaption(slot) {
 }
 
 // Escape untrusted text (error messages can embed scraped page content)
-// before it goes into innerHTML
+// before it goes into innerHTML.
 function esc(s) {
+  // CONTRACT: text content only. The textContent -> innerHTML round-trip below
+  // escapes &, <, > but NOT " or ', so esc() is NOT safe inside an HTML
+  // attribute (e.g. <option value="..."> or onclick="..."), where an unescaped
+  // quote can break out. Use escAttr() at every attribute site. See issue #41.
   const d = document.createElement('div');
   d.textContent = String(s ?? '');
   return d.innerHTML;
+}
+
+// Escape untrusted text for an HTML ATTRIBUTE context. Like esc() but also
+// escapes " and ' so a value cannot break out of either quote style. Use this
+// anywhere a value lands inside an attribute — including inside an
+// onclick="..." where the value is wrapped in single-quoted JS strings.
+function escAttr(s) {
+  return esc(s)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Backend post IDs are "..._ok_X" when the success element was seen,
@@ -1458,7 +1472,7 @@ function renderQueuePanel(batches, snapshots) {
     const actionLabel = isInt ? 'Dismiss' : 'Cancel';
     return `<div class="${cls}">
       <span>${esc(localTime)} — slots: ${esc(slots)}${statusLabel}</span>
-      <button class="btn-secondary btn-small" onclick="cancelQueueBatch('${esc(b.id)}')">${actionLabel}</button>
+      <button class="btn-secondary btn-small" onclick="cancelQueueBatch('${escAttr(b.id)}')">${actionLabel}</button>
     </div>`;
   }).join('') : '') + renderRetainedMedia(retained);
 }
@@ -1474,7 +1488,7 @@ function renderRetainedMedia(snapshots) {
         <strong>${esc(s.batch_id.slice(0, 8))}</strong> — ${files} file(s), ${kb} KB, ${esc(when)}
         <span class="queue-media-reason">${esc(s.reason || '')}</span>
       </span>
-      <button class="btn-secondary btn-small" onclick="deleteQueueMedia('${esc(s.batch_id)}', '${esc(s.classification)}', '${esc(s.reason || '')}')">Delete media</button>
+      <button class="btn-secondary btn-small" onclick="deleteQueueMedia('${escAttr(s.batch_id)}', '${escAttr(s.classification)}', '${escAttr(s.reason || '')}')">Delete media</button>
     </div>`;
   }).join('');
   return `<div class="queue-media-heading">Retained media (${snapshots.length})</div>${rows}`;
