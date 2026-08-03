@@ -18,7 +18,7 @@ import backend.main as main
 from tests.source_probe import real_source
 from backend import captions, instagram_browser, jitter, session_manager, tiktok_browser
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
 
 
 # ---------------------------------------------------------------------------
@@ -48,10 +48,10 @@ def test_posters_no_longer_return_unconditional_ok():
         assert "confirmed" in src
 
 
-def test_frontend_renders_unconfirmed_state():
+def test_frontend_renders_unconfirmed_state(frontend_src):
     """Finding #1 display layer (Reviewer 1, MEDIUM): the UI no longer
     hardcodes 'IG ✓ TT ✓'; it derives per-platform status from the IDs."""
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+    html = frontend_src
     assert "IG ✓ TT ✓" not in html
     assert "platStatus" in html
     assert "unconfirmed" in html
@@ -281,10 +281,10 @@ def test_finally_close_is_guarded():
 # Finding #11 — error text rendered via innerHTML unescaped
 # ---------------------------------------------------------------------------
 
-def test_frontend_escapes_untrusted_text():
+def test_frontend_escapes_untrusted_text(frontend_src):
     """Finding #11 (Reviewer 3, MEDIUM): error strings and account names in
     the status panel are HTML-escaped before insertion."""
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+    html = frontend_src
     assert "function esc(" in html
     assert "${esc(result.errors.join('; '))}" in html
     assert "${result.errors.join('; ')}" not in html

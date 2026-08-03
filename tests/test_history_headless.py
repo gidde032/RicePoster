@@ -5,7 +5,7 @@ from pathlib import Path
 import backend.main as main
 from backend.models import PostResult
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
 
 
 def _post_once(client, tmp_media, monkeypatch, captured, extra_form=None, result=None):
@@ -107,8 +107,8 @@ def test_history_file_gitignored():
 
 # --- frontend wiring (source-level) ------------------------------------------
 
-def test_frontend_headless_and_history_wiring():
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+def test_frontend_headless_and_history_wiring(frontend_src):
+    html = frontend_src
     assert "toggleHeadless" in html
     assert "headlessBadge" in html
     assert "payload.headless = state.headlessOverride" in html

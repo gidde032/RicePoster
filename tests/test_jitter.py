@@ -15,7 +15,6 @@ floor.
 
 import asyncio
 import inspect
-import pathlib
 import time
 
 import pytest
@@ -498,11 +497,10 @@ def test_malformed_waiting_detail_does_not_raise():
     assert main._post_progress.waiting["seconds"] == 0.0
 
 
-def test_frontend_renders_the_countdown():
+def test_frontend_renders_the_countdown(frontend_src):
     """Source-level (browser JS is not E2E-testable here): the UI must read
     the waiting field and show a countdown rather than 'waiting…'."""
-    html = (pathlib.Path(__file__).parent.parent
-            / "frontend" / "index.html").read_text()
+    html = frontend_src
     assert "p.waiting && p.waiting.slot === slot" in html
     assert "p.waiting.remaining" in html
 

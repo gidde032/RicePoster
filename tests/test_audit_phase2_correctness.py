@@ -15,7 +15,6 @@ import datetime
 import inspect
 import json
 import unittest.mock
-from pathlib import Path
 
 import pytest
 
@@ -23,7 +22,7 @@ from backend import main, poster_browser, scheduler
 from backend.models import PostResult
 from backend.notifier import Notifier, send_safe
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
 
 
 class _RecordingNotifier(Notifier):
@@ -165,14 +164,14 @@ def test_both_history_writers_agree_on_the_clock(tmp_path, monkeypatch):
     assert datetime.datetime.fromisoformat(manual).tzinfo is not None
 
 
-def test_frontend_converts_history_timestamps_for_display():
+def test_frontend_converts_history_timestamps_for_display(frontend_src):
     """Source-level assertion — the frontend has no test harness.
 
     Rendering `ts` raw is what made the split clocks visible to the user. The
     helper must also tolerate the pre-fix naive rows already in the
     maintainer's history.jsonl rather than showing "Invalid Date".
     """
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+    html = frontend_src
     assert "function fmtHistoryTime" in html
     assert "esc(fmtHistoryTime(en.ts))" in html, (
         "the history row no longer renders through the converter"

@@ -30,14 +30,13 @@ test. `allow_browser_post_media` is the single, explicit opt-in.
 import os
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
 
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
 
 # Captured at import, before any test can run, so the opt-in fixture below can
 # hand back the genuine coroutine functions after the autouse guard has

@@ -8,14 +8,12 @@ import backend.main as main
 from backend import poster_browser
 from backend.models import PostResult
 
-PROJECT_ROOT = Path(__file__).parent.parent
-
 
 # --- rename ------------------------------------------------------------------
 
-def test_renamed_to_riceposter():
+def test_renamed_to_riceposter(frontend_src):
     assert main.app.title == "RicePoster"
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+    html = frontend_src
     assert "<title>RicePoster</title>" in html
     assert "RICEPOSTER" in html
     # The frontend used to carry the seed account's persona in its copy and
@@ -173,8 +171,8 @@ def test_media_clear_blocked_during_post_run(client, tmp_media, monkeypatch):
 
 # --- frontend wiring (source-level) ------------------------------------------
 
-def test_frontend_polish_wiring():
-    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+def test_frontend_polish_wiring(frontend_src):
+    html = frontend_src
     # live progress polling
     assert "/api/post-progress" in html
     assert "startProgressPolling" in html and "stopProgressPolling" in html

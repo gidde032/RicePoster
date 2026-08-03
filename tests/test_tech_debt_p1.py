@@ -13,13 +13,13 @@ source level in this file because the frontend has no test harness.
 
 import re
 import warnings
-from pathlib import Path
 
 import pytest
 
 from backend import browser_common, instagram_browser, tiktok_browser
 
-PROJECT_ROOT = Path(__file__).parent.parent
+from tests.paths import PROJECT_ROOT
+
 BACKEND = PROJECT_ROOT / "backend"
 
 
@@ -148,7 +148,7 @@ def test_tiktok_post_button_chain_is_out_of_scope():
 
 # --- FE-1a: init() failure is visible ---------------------------------------
 
-def test_init_failure_is_surfaced_in_the_ui():
+def test_init_failure_is_surfaced_in_the_ui(frontend_src):
     """FE-1: `init()` builds the entire UI, so a failed /api/accounts left a
     blank page and a console line nobody was watching — indistinguishable from
     "still loading". Source-level assertion: the frontend has no JS test
@@ -156,7 +156,7 @@ def test_init_failure_is_surfaced_in_the_ui():
 
     Note the audit called this `loadAccounts`; the function is `init()` (the
     name comes from its error string)."""
-    src = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+    src = frontend_src
     init_body = src.split("async function init()", 1)[1].split("\nasync function", 1)[0]
     assert "Failed to load accounts:" in init_body
     # The catch must write something into the DOM, not only the console. Batch 2
