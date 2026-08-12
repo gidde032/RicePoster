@@ -1,6 +1,6 @@
 # RicePoster Roadmap
 
-Updated 2026-07-30. GitHub Issues are the source of truth for open work; this
+Updated 2026-08-12. GitHub Issues are the source of truth for open work; this
 document records direction, priority horizons, and boundaries without
 duplicating issue bodies.
 
@@ -18,15 +18,14 @@ hands-off growth.
 
 ### v1.0.0 — Public release
 
-The repository becomes public. Scope is a security and public-readiness audit
-([#50](https://github.com/gidde032/RicePoster/issues/50)), which is blocked by
-[#60](https://github.com/gidde032/RicePoster/issues/60) — git history still
-contains five debug screenshots of live Instagram sessions, removed from the
-tip but not from history. A merge cannot remove them, so the remediation
-strategy is a maintainer decision that gates the rest of the milestone.
+The repository is public. The security and public-readiness audit
+([#50](https://github.com/gidde032/RicePoster/issues/50)) is complete, the
+screenshot purge ([#60](https://github.com/gidde032/RicePoster/issues/60)) is
+verified, and the `main` ruleset is enforced
+([#72](https://github.com/gidde032/RicePoster/issues/72)).
 
 [#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
-also sits here and needs an approved live TikTok run.
+remains and needs an approved live TikTok run before its PR leaves draft.
 
 ## Shipped milestones
 
