@@ -2,8 +2,8 @@
 
 ## [Unreleased]
 
-Work toward `v1.0.0 — Public release` is tracked on that milestone; see #50
-and its blocker #60.
+[#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
+is the only remaining v1.0.0 item; it needs an approved live TikTok run.
 
 ### Changed
 
@@ -19,12 +19,12 @@ and its blocker #60.
   actually differs in practice.
   ([#53](https://github.com/gidde032/RicePoster/issues/53))
 
-- The repository is being prepared for public release. Documentation and
-  caption prompts are now local-by-default: `.gitignore` allowlists the four
-  public documents and the four generic seed caption styles, so a new internal
-  document or a personal caption style is ignored the moment it is created
-  rather than needing to be remembered. The default caption style is the
-  neutral `generic`.
+- The repository is public. Documentation and caption prompts are local-by-default:
+  `.gitignore` allowlists the four public documents and the four generic seed
+  caption styles, so a new internal document or a personal caption style is
+  ignored the moment it is created rather than needing to be remembered. The
+  default caption style is the neutral `generic`. The `main` ruleset is enforced;
+  verified by [#72](https://github.com/gidde032/RicePoster/issues/72).
   ([#50](https://github.com/gidde032/RicePoster/issues/50))
 
 - The test suite's duplicated `PROJECT_ROOT` constant is consolidated into one

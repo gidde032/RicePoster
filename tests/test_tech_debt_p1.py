@@ -381,5 +381,5 @@ def test_run_script_advertises_the_address_it_binds():
     cosmetic — localhost can resolve to ::1, where nothing is listening."""
     run_sh = (PROJECT_ROOT / "run.sh").read_text()
     assert "--host 127.0.0.1" in run_sh
-    assert "http://127.0.0.1:8000" in run_sh
+    assert "http://127.0.0.1:1738" in run_sh
     assert "http://localhost:8000" not in run_sh

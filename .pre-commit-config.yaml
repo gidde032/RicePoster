@@ -4,11 +4,25 @@ repos:
       # Commit tier: 6 fast happy-path tests
       - id: pytest-smoke
         name: pytest smoke tier
-        entry: python -m pytest -m smoke -q --no-header
-        language: system
+        entry: pytest -m smoke -q --no-header
+        language: python
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+        additional_dependencies:
+          # Runtime
+          - fastapi==0.115.0
+          - uvicorn==0.30.6
+          - python-multipart==0.0.9
+          - anthropic==0.34.0
+          - httpx==0.27.2
+          - python-dotenv==1.0.1
+          - pydantic==2.9.0
+          - aiofiles==24.1.0
+          - playwright==1.49.0
+          # Development / quality gates
+          - pytest==9.0.3
+          - pytest-cov==7.1.0
 
       # Push tier: full suite catches regressions smoke misses, and enforces
       # the coverage floor. These --cov flags are the ONLY thing enforcing that
@@ -16,8 +30,22 @@ repos:
       # SPEC.md but ran nowhere). test_gates.py asserts they are still here.
       - id: pytest-full
         name: pytest full suite + coverage floor
-        entry: python -m pytest tests/ -q --no-header --cov=backend --cov-fail-under=43
-        language: system
+        entry: pytest tests/ -q --no-header --cov=backend --cov-fail-under=43
+        language: python
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+        additional_dependencies:
+          # Runtime
+          - fastapi==0.115.0
+          - uvicorn==0.30.6
+          - python-multipart==0.0.9
+          - anthropic==0.34.0
+          - httpx==0.27.2
+          - python-dotenv==1.0.1
+          - pydantic==2.9.0
+          - aiofiles==24.1.0
+          - playwright==1.49.0
+          # Development / quality gates
+          - pytest==9.0.3
+          - pytest-cov==7.1.0
