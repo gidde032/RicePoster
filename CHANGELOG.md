@@ -5,6 +5,19 @@
 [#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
 is the only remaining v1.0.0 item; it needs an approved live TikTok run.
 
+### Added
+
+- **Pull from Clipper.** A one-click ingest of RiceClipper handoff batches:
+  RiceClipper writes finished captioned clips into a shared handoff folder
+  (`HANDOFF_DIR`, default `~/riceclipper-handoff`), and the new **Pull from
+  Clipper** button ingests the oldest batch — assigning clips to slots in
+  order, staging their media, and generating a `CLIPPER_INGEST_STYLE` caption
+  (default `benny-blanco`) from each clip's transcript — dropping the
+  maintainer at the normal review → Post All step. The batch is deleted only
+  after every clip ingests; a batch with more clips than configured slots is
+  rejected. `POST /api/pull-from-clipper` and `backend/handoff_pickup.py` never
+  post and never schedule.
+
 ### Changed
 
 - Over-length captions are now rejected at the API boundary before any browser

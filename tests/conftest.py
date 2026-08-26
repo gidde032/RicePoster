@@ -315,6 +315,29 @@ def tmp_queue_paths(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def tmp_handoff_paths(monkeypatch, tmp_path):
+    """Redirect the RiceClipper handoff root and the pickup's media dir to temp.
+
+    Autouse and unconditional, for the same reason as `tmp_queue_paths` but with
+    the same worst-case: `handoff_pickup.ingest_oldest` **deletes** a batch
+    directory (`shutil.rmtree`) on success and writes into `MEDIA_DIR`. An
+    unpatched test that reached the pickup would scan and delete the
+    maintainer's real `~/riceclipper-handoff` and write into the real `media/`.
+    `handoff_pickup` resolves both from its own module-level names at call time,
+    so patching them here is sufficient.
+    """
+    from backend import handoff_pickup
+
+    handoff = tmp_path / "handoff"
+    handoff.mkdir()
+    media = tmp_path / "pickup_media"
+    media.mkdir()
+    monkeypatch.setattr(handoff_pickup, "HANDOFF_DIR", handoff)
+    monkeypatch.setattr(handoff_pickup, "MEDIA_DIR", media)
+    return {"handoff": handoff, "media": media}
+
+
+@pytest.fixture(autouse=True)
 def tmp_ig_sessions_dir(monkeypatch, tmp_path):
     """Point the account-label lookup at an empty temp dir.
 

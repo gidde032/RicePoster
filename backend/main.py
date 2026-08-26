@@ -26,7 +26,7 @@ from backend.captions import generate_caption, load_styles, DEFAULT_STYLE
 from backend.poster import post_all as post_all_api
 from backend.poster_browser import post_all as post_all_browser
 from backend.notifier import get_notifier, send_safe
-from backend import run_guard
+from backend import handoff_pickup, run_guard
 from backend.logging_setup import get_logger
 
 _log = get_logger("main")
@@ -279,6 +279,23 @@ async def generate_caption_endpoint(data: Annotated[CaptionRequest, Form()]):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"caption": caption}
+
+
+@app.post("/api/pull-from-clipper")
+async def pull_from_clipper():
+    """Ingest the oldest RiceClipper handoff batch into a pending run.
+
+    Stages the batch's media and generates a caption per clip for the normal
+    review -> Post All flow. This endpoint NEVER posts and NEVER schedules
+    (CLAUDE.md safety rule) — it only stages files and generates captions.
+    """
+    try:
+        result = await handoff_pickup.ingest_oldest()
+    except handoff_pickup.NoBatchAvailable:
+        return {"pulled": False, "reason": "No handoff batches to pull."}
+    except handoff_pickup.HandoffPickupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"pulled": True, **result}
 
 
 class PostProgress:

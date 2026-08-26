@@ -53,8 +53,10 @@ See `credentials.env.example` for the full template. The essentials:
 | `SESSION_CHECK_TTL_S` | How long a passing session health check is trusted, in seconds (default `21600` = 6h) |
 | `PREFLIGHT_CHECK_PLATFORMS` | Which platforms get a browser pre-flight check before a scheduled batch. Default, and empty/unset, = `instagram,tiktok`; the literal `none` disables both |
 | `INTER_SLOT_DELAY_MIN_S` / `INTER_SLOT_DELAY_MAX_S` | Randomised gap between account slots in a run, in seconds (default `60`/`180`). Both `0` disables |
+| `HANDOFF_DIR` | Shared folder RiceClipper writes finished clips into and **Pull from Clipper** reads from (default `~/riceclipper-handoff`). Must match RiceClipper's `RICECLIPPER_HANDOFF_DIR` |
+| `CLIPPER_INGEST_STYLE` | Caption style applied to clips pulled from RiceClipper (default `benny-blanco`) |
 
-The last three reduce Instagram's automation signal. Instagram flags accounts
+The `INTER_SLOT_DELAY_*`, `SESSION_CHECK_TTL_S` and `PREFLIGHT_CHECK_PLATFORMS` knobs reduce Instagram's automation signal. Instagram flags accounts
 that show machine-like patterns, and the three biggest ones this tool can
 control are: repeated automated page loads (cut by caching a passing health
 check for `SESSION_CHECK_TTL_S`), browser traffic that isn't a post (cut by
@@ -110,6 +112,14 @@ can post to real accounts. Don't expose it to the network.
 7. Final per-slot status: ✓ confirmed, ⚠ **unconfirmed** (the success element
    never appeared — check the platform before reposting, the post may have
    gone through), or an error message.
+
+**Pull from Clipper** (steps 2–3 in one click): if you use
+[RiceClipper](https://github.com/gidde032/RiceClipper) to render captioned
+clips, it writes finished batches into a shared handoff folder (`HANDOFF_DIR`).
+**Pull from Clipper** ingests the oldest batch — assigning clips to slots in
+order, staging their media, and generating a `CLIPPER_INGEST_STYLE` caption from
+each clip's transcript — then drops you at step 5 (review captions → Post All).
+It never posts or schedules on its own.
 
 Also in the UI: an upload progress bar for large videos, a caption character
 counter (2,200 limit), session dots on each slot card, **New Run** to clear

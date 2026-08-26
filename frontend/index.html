@@ -530,6 +530,7 @@
 <div class="slots-container" id="slotsContainer"></div>
 
 <div class="actions">
+  <button class="btn-secondary" id="btnPullClipper" onclick="pullFromClipper()">Pull from Clipper</button>
   <button class="btn-generate" id="btnGenerate" disabled onclick="generateAll()">Generate Captions</button>
   <button class="btn-post" id="btnPost" disabled onclick="postAll()">Post All</button>
   <button class="btn-schedule" id="btnSchedule" disabled onclick="toggleScheduleRow()">Schedule</button>
@@ -811,6 +812,72 @@ function renderSlots() {
       if (e.dataTransfer.files.length) handleFile(slot, e.dataTransfer.files[0]);
     });
   }
+}
+
+// --- Pull from Clipper: ingest the oldest RiceClipper handoff batch. The
+// backend stages media and generates captions; we fill the slot cards in place
+// (renderSlots rebuilds structure but not caption text or previews). This never
+// posts — the maintainer still reviews captions and clicks Post All.
+async function pullFromClipper() {
+  const btn = elOpt('btnPullClipper');
+  if (btn) btn.disabled = true;
+  setPullStatus('Pulling the oldest batch from RiceClipper…');
+  try {
+    const resp = await fetchWithTimeout('/api/pull-from-clipper', { method: 'POST' });
+    await handleFetchError(resp);
+    const data = await resp.json();
+    if (!data.pulled) {
+      setPullStatus(data.reason || 'Nothing to pull.');
+      return;
+    }
+    for (const entry of data.slots) applyPulledSlot(entry);
+    updateButtons();
+    setPullStatus(`Pulled batch ${data.batch_id} into ${data.slots.length} slot(s). Review captions, then Post All.`);
+  } catch (e) {
+    setPullStatus(`Pull failed: ${e.message || e}`, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function applyPulledSlot(entry) {
+  const slot = entry.slot;
+  const s = state.slots[slot];
+  if (!s) return; // slot not configured in this session
+  s.filename = entry.filename;
+  s.mediaType = entry.media_type || 'video';
+  s.topic = entry.topic || '';
+  s.caption = entry.caption || '';
+
+  const badge = slotElOpt('mediaTypeBadge', slot);
+  if (badge) {
+    badge.textContent = s.mediaType;
+    badge.className = `media-type-badge ${s.mediaType}`;
+    badge.style.display = '';
+  }
+  // A pulled clip has no client-side File, so there is no in-browser preview;
+  // the media lives on the server and posts normally. Show the staged name.
+  const dropText = slotElOpt('dropText', slot);
+  if (dropText) { dropText.style.display = ''; dropText.textContent = `Pulled from Clipper: ${entry.filename}`; }
+  const dropZone = slotElOpt('dropZone', slot);
+  if (dropZone) dropZone.classList.add('has-file');
+
+  const topicInput = slotElOpt('topic', slot);
+  if (topicInput) topicInput.value = s.topic;
+  const ta = slotElOpt('caption', slot);
+  if (ta) { ta.value = s.caption; autoGrow(ta); }
+  updateCharCount(slot);
+  setCaptionError(slot, '');
+}
+
+function setPullStatus(message, isError = false) {
+  const panel = elOpt('statusPanel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="status-item ${isError ? 'status-error' : ''}">
+      <span class="status-icon">${isError ? '✗' : 'ℹ'}</span>
+      <span>${esc(message)}</span>
+    </div>`;
 }
 
 // --- Thumbnail capture: a downscaled frame sent with caption requests so
