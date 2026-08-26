@@ -4,12 +4,15 @@ Consumer side of RiceClipper's handoff contract. RiceClipper writes finished
 clips into a shared handoff directory as `batch_<ts>/` folders, each containing
 `clip_<position>.mp4` files plus a `manifest.json` written **last** (the
 "batch complete" signal). This module turns the **oldest** ready batch into
-media + captions for the existing review -> Post All flow.
+staged media for the existing review -> Post All flow.
 
 SAFETY: this module NEVER posts and NEVER schedules (CLAUDE.md rule #1). It only
-copies media into `MEDIA_DIR` and generates captions. Caption generation goes
-through `captions.generate_caption`, which the test tripwire guards — a test
-that reaches it un-stubbed fails loudly.
+copies media into `MEDIA_DIR`. It does **not** generate captions — captioning
+happens in the browser afterward, through the same `/api/generate-caption` path
+manual uploads use, so a pulled clip's caption is grounded on a real frame
+(captured client-side from the staged video) exactly like manual, rather than on
+the transcript alone. Each slot carries `topic` (the transcript) and a default
+`style` for that step.
 
 Config (`HANDOFF_DIR`, `MEDIA_DIR`, `SLOT_IDS`, `CLIPPER_INGEST_STYLE`) is
 imported as module-level names and read at call time, so tests redirect them by
@@ -22,7 +25,6 @@ import json
 import shutil
 from pathlib import Path
 
-from backend import captions
 from backend.config import CLIPPER_INGEST_STYLE, HANDOFF_DIR, MEDIA_DIR, SLOT_IDS
 from backend.logging_setup import get_logger
 
@@ -70,14 +72,13 @@ def _read_manifest(batch_dir: Path) -> dict:
     return manifest
 
 
-async def ingest_oldest() -> dict:
-    """Ingest the oldest ready batch and return its slot assignments.
+def ingest_oldest() -> dict:
+    """Stage the oldest ready batch and return its slot assignments.
 
-    Copies each clip into `MEDIA_DIR` as `{slot}_{batch}_{file}`, generates a
-    caption from the clip's transcript in the configured style, and — only once
-    every clip has ingested successfully — deletes the batch directory. On any
-    failure the whole batch is retained (media staged for it is rolled back) so
-    it can be re-pulled without re-rendering.
+    Copies each clip into `MEDIA_DIR` as `{slot}_{batch}_{file}` and — only once
+    every clip has staged successfully — deletes the batch directory. On any
+    failure the whole batch is retained (staged media is rolled back) so it can
+    be re-pulled without re-rendering. Captioning is left to the browser step.
 
     Raises ``NoBatchAvailable`` when nothing is ready and ``HandoffPickupError``
     for a malformed batch or a batch with more clips than configured slots.
@@ -111,30 +112,23 @@ async def ingest_oldest() -> dict:
             dest = MEDIA_DIR / filename
             shutil.copyfile(src, dest)
             staged.append(dest)
-
-            transcript = clip.get("transcript", "")
-            caption = await captions.generate_caption(
-                media_type="video",
-                topic=transcript,
-                style=CLIPPER_INGEST_STYLE,
-            )
             slots.append(
                 {
                     "slot": slot,
                     "filename": filename,
                     "media_type": "video",
-                    "caption": caption,
-                    "topic": transcript,
+                    "topic": clip.get("transcript", ""),
                     "header": clip.get("header", ""),
+                    "style": CLIPPER_INGEST_STYLE,
                 }
             )
     except Exception:
-        # Ingest is all-or-nothing: roll back staged media and keep the batch.
+        # Staging is all-or-nothing: roll back staged media and keep the batch.
         for dest in staged:
             dest.unlink(missing_ok=True)
         raise
 
-    # Every clip ingested — the batch dir is now redundant (RicePoster holds its
+    # Every clip staged — the batch dir is now redundant (RicePoster holds its
     # own media copy), so purge it per the contract's purge policy.
     shutil.rmtree(batch_dir, ignore_errors=True)
     _log.info("[handoff] pulled batch %s into %d slot(s)", batch_id, len(slots))

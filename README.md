@@ -117,9 +117,10 @@ can post to real accounts. Don't expose it to the network.
 [RiceClipper](https://github.com/gidde032/RiceClipper) to render captioned
 clips, it writes finished batches into a shared handoff folder (`HANDOFF_DIR`).
 **Pull from Clipper** ingests the oldest batch — assigning clips to slots in
-order, staging their media, and generating a `CLIPPER_INGEST_STYLE` caption from
-each clip's transcript — then drops you at step 5 (review captions → Post All).
-It never posts or schedules on its own.
+order and staging their media — then shows a playable preview per slot and
+writes a `CLIPPER_INGEST_STYLE` caption for each, grounded on a frame from the
+clip plus its transcript (the same caption path a manual upload uses). You land
+at step 5 (review captions → Post All). It never posts or schedules on its own.
 
 Also in the UI: an upload progress bar for large videos, a caption character
 counter (2,200 limit), session dots on each slot card, **New Run** to clear

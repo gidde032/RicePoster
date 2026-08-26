@@ -283,19 +283,38 @@ async def generate_caption_endpoint(data: Annotated[CaptionRequest, Form()]):
 
 @app.post("/api/pull-from-clipper")
 async def pull_from_clipper():
-    """Ingest the oldest RiceClipper handoff batch into a pending run.
+    """Stage the oldest RiceClipper handoff batch into a pending run.
 
-    Stages the batch's media and generates a caption per clip for the normal
-    review -> Post All flow. This endpoint NEVER posts and NEVER schedules
-    (CLAUDE.md safety rule) — it only stages files and generates captions.
+    Copies the batch's media into MEDIA_DIR and returns per-slot assignments
+    (filename + transcript topic + default style). Captioning happens in the
+    browser afterward via /api/generate-caption, so a pulled clip is captioned
+    on a real frame just like manual. This endpoint NEVER posts and NEVER
+    schedules (CLAUDE.md safety rule) — it only stages files.
     """
     try:
-        result = await handoff_pickup.ingest_oldest()
+        result = handoff_pickup.ingest_oldest()
     except handoff_pickup.NoBatchAvailable:
         return {"pulled": False, "reason": "No handoff batches to pull."}
     except handoff_pickup.HandoffPickupError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"pulled": True, **result}
+
+
+@app.get("/api/media/{filename}")
+async def get_media(filename: str):
+    """Serve a staged media file for in-UI preview (e.g. Pull from Clipper).
+
+    Basename only and an exact-match guard, so a client-supplied path can never
+    escape MEDIA_DIR. Read-only — it serves files already under the media
+    library and writes nothing.
+    """
+    safe_name = Path(filename).name
+    if not safe_name or safe_name != filename:
+        raise HTTPException(status_code=400, detail="invalid media name")
+    path = MEDIA_DIR / safe_name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="media not found")
+    return FileResponse(path)
 
 
 class PostProgress:
