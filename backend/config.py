@@ -283,6 +283,14 @@ MOCK_MODE = POST_MODE == "mock"  # backward compat
 # Whether to run browsers visibly (useful for debugging automation)
 HEADLESS = env_bool("HEADLESS", True)
 
+# RiceClipper handoff pickup ("Pull from Clipper"). HANDOFF_DIR is the shared
+# directory RiceClipper writes finished batches into and this app reads from;
+# it must match RiceClipper's RICECLIPPER_HANDOFF_DIR. CLIPPER_INGEST_STYLE is
+# the caption style applied to pulled clips; local workflows may override the
+# tracked content-neutral default in credentials.env.
+HANDOFF_DIR = Path(os.getenv("HANDOFF_DIR", "~/riceclipper-handoff")).expanduser()
+CLIPPER_INGEST_STYLE = os.getenv("CLIPPER_INGEST_STYLE", "generic")
+
 # How long a successful session health check stays valid, in seconds
 # (RESEARCH-platform-detection.md F5). The scheduler runs a
 # pre-flight check per slot per platform before every batch, so with 3 slots

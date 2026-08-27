@@ -530,6 +530,7 @@
 <div class="slots-container" id="slotsContainer"></div>
 
 <div class="actions">
+  <button class="btn-secondary" id="btnPullClipper" onclick="pullFromClipper()">Pull from Clipper</button>
   <button class="btn-generate" id="btnGenerate" disabled onclick="generateAll()">Generate Captions</button>
   <button class="btn-post" id="btnPost" disabled onclick="postAll()">Post All</button>
   <button class="btn-schedule" id="btnSchedule" disabled onclick="toggleScheduleRow()">Schedule</button>
@@ -811,6 +812,129 @@ function renderSlots() {
       if (e.dataTransfer.files.length) handleFile(slot, e.dataTransfer.files[0]);
     });
   }
+}
+
+// --- Pull from Clipper: stage the oldest RiceClipper handoff batch. The backend
+// stages media only; we show a playable preview per slot, capture the frame the
+// caption AI will see (same as manual), then auto-generate captions through the
+// existing /api/generate-caption path. Never posts — the maintainer reviews the
+// captions and clicks Post All.
+async function pullFromClipper() {
+  const btn = elOpt('btnPullClipper');
+  if (btn) btn.disabled = true;
+  setPullStatus('Pulling the oldest batch from RiceClipper…');
+  try {
+    const resp = await fetchWithTimeout('/api/pull-from-clipper', { method: 'POST' });
+    await handleFetchError(resp);
+    const data = await resp.json();
+    if (!data.pulled) {
+      setPullStatus(data.reason || 'Nothing to pull.');
+      return;
+    }
+
+    const pulled = [];
+    for (const entry of data.slots) {
+      const mediaUrl = applyPulledSlot(entry);
+      if (mediaUrl && state.slots[entry.slot]) pulled.push({ slot: entry.slot, mediaUrl });
+    }
+    updateButtons();
+    setPullStatus(`Pulled batch ${data.batch_id} into ${data.slots.length} slot(s). Capturing frames and writing captions…`);
+
+    // Grab the frame the caption AI sees from each staged clip, then generate
+    // captions through the same path manual uses (topic = transcript + frame).
+    await Promise.all(pulled.map(async ({ slot, mediaUrl }) => {
+      state.slots[slot].thumb = await captureThumbnailFromUrl(mediaUrl);
+      updateThumbChip(slot);
+    }));
+    await generateAll();
+
+    setPullStatus(`Pulled batch ${data.batch_id} into ${data.slots.length} slot(s). Review captions, then Post All.`);
+  } catch (e) {
+    setPullStatus(`Pull failed: ${e.message || e}`, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Fill a slot from a pulled entry and show a playable preview of the staged
+// media. Returns the media URL so the caller can capture a frame from it.
+// renderSlots rebuilds card structure but not caption text or previews, so this
+// updates the DOM in place (like handleFile).
+function applyPulledSlot(entry) {
+  const slot = entry.slot;
+  const s = state.slots[slot];
+  if (!s) return ''; // slot not configured in this session
+  s.filename = entry.filename;
+  s.mediaType = entry.media_type || 'video';
+  s.topic = entry.topic || '';
+  s.style = entry.style || s.style || state.defaultCaptionStyle;
+  s.caption = '';
+  s.thumb = '';
+
+  const badge = slotElOpt('mediaTypeBadge', slot);
+  if (badge) {
+    badge.textContent = s.mediaType;
+    badge.className = `media-type-badge ${s.mediaType}`;
+    badge.style.display = '';
+  }
+
+  const topicInput = slotElOpt('topic', slot);
+  if (topicInput) topicInput.value = s.topic;
+  const ta = slotElOpt('caption', slot);
+  if (ta) { ta.value = ''; autoGrow(ta); }
+  updateCharCount(slot);
+  setCaptionError(slot, '');
+
+  // Playable preview straight from the server-staged media.
+  const mediaUrl = `/api/media/${encodeURIComponent(entry.filename)}`;
+  const dropZone = slotElOpt('dropZone', slot);
+  const dropText = slotElOpt('dropText', slot);
+  if (dropText) dropText.style.display = 'none';
+  if (dropZone) {
+    dropZone.classList.add('has-file');
+    const oldPreview = dropZone.querySelector('img, video');
+    if (oldPreview) oldPreview.remove();
+    const video = document.createElement('video');
+    video.src = mediaUrl;
+    video.muted = true;
+    video.loop = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.controls = true;
+    dropZone.appendChild(video);
+  }
+  return mediaUrl;
+}
+
+// Capture a frame from a staged, same-origin media URL, mirroring
+// captureThumbnail's video branch. Same-origin so the canvas is not tainted;
+// any failure degrades to '' and the caption falls back to text-only.
+function captureThumbnailFromUrl(url) {
+  return new Promise(resolve => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.onloadedmetadata = () => {
+      video.currentTime = Math.min(1, (video.duration || 2) / 2);
+    };
+    video.onseeked = () => {
+      try { resolve(drawThumb(video, video.videoWidth, video.videoHeight)); }
+      catch (e) { console.error('Thumbnail capture failed:', e); resolve(''); }
+    };
+    video.onerror = () => resolve('');
+    video.src = url;
+  });
+}
+
+function setPullStatus(message, isError = false) {
+  const panel = elOpt('statusPanel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="status-item ${isError ? 'status-error' : ''}">
+      <span class="status-icon">${isError ? '✗' : 'ℹ'}</span>
+      <span>${esc(message)}</span>
+    </div>`;
 }
 
 // --- Thumbnail capture: a downscaled frame sent with caption requests so

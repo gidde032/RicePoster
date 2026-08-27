@@ -4,6 +4,7 @@ Feature added 2026-07-18: caption prompts are per-style files instead of a
 hardcoded SYSTEM_PROMPT, selectable per slot from the UI.
 """
 
+import ast
 import asyncio
 import json
 import subprocess
@@ -63,6 +64,72 @@ def test_tracked_prompts_are_exactly_the_seed_set():
         f"Tracked prompts {sorted(names)} differ from the seed set "
         f"{sorted(SEED_STYLES)}. A personal caption style must stay local — "
         "add it to .gitignore instead of committing it."
+    )
+
+
+def test_clipper_ingest_default_is_a_public_seed_style():
+    """Sensitivity regression (MEDIUM): public defaults must stay content-neutral.
+
+    The prompt-file allowlist cannot catch a private style identifier copied
+    into configuration, documentation, examples, or tests. Pin the executable
+    default structurally without spelling any private identifier here.
+    """
+    tree = ast.parse((PROJECT_ROOT / "backend/config.py").read_text())
+    assignments = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "CLIPPER_INGEST_STYLE"
+            for target in node.targets
+        )
+    ]
+    assert len(assignments) == 1
+    call = assignments[0]
+    assert isinstance(call, ast.Call) and len(call.args) == 2
+    default = call.args[1]
+    assert isinstance(default, ast.Constant) and default.value in SEED_STYLES
+    assert default.value == "generic"
+
+
+def test_local_style_identifiers_are_absent_from_public_head():
+    """Sensitivity regression (MEDIUM): local style names never enter public Git.
+
+    Discover ignored local prompt names instead of embedding a disclosure-prone
+    blocklist. The pre-push full suite then checks both tracked files and commit
+    messages reachable from the proposed public HEAD.
+    """
+    local_names = {
+        path.stem.casefold()
+        for path in (PROJECT_ROOT / "prompts").glob("*.json")
+        if path.stem not in SEED_STYLES
+    }
+    if not local_names:
+        return
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=PROJECT_ROOT, capture_output=True, check=True,
+    ).stdout.split(b"\0")
+    public_text = []
+    for raw_path in tracked:
+        if not raw_path:
+            continue
+        path = PROJECT_ROOT / raw_path.decode()
+        try:
+            public_text.append(path.read_text(errors="ignore"))
+        except (OSError, UnicodeError):
+            continue
+    public_text.append(subprocess.run(
+        ["git", "log", "HEAD", "--format=%B"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True, check=True,
+    ).stdout)
+    corpus = "\n".join(public_text).casefold()
+    leaked = sorted(name for name in local_names if name in corpus)
+    assert not leaked, (
+        "A local caption-style identifier appears in tracked files or public "
+        "HEAD history. Keep local styles ignored and use a seed style in all "
+        "public defaults, examples, tests, documentation, and commit messages."
     )
 
 

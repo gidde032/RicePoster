@@ -104,10 +104,11 @@ def test_handle_fetch_error_is_adopted_at_every_call_site():
     had the inline copy and several more had no status check at all."""
     script = _script()
     # Exact, not a floor: a floor lets a call site silently lose its check
-    # (review finding, 2026-07-30). The twelve are /api/accounts, both caption
+    # (review finding, 2026-07-30). The thirteen are /api/accounts, both caption
     # paths, media-info, media/clear, history, post-progress, /api/post, the
-    # queue POST/GET, the queue DELETE, and the queue-media DELETE (#4).
-    assert script.count("await handleFetchError(resp)") == 12, (
+    # queue POST/GET, the queue DELETE, the queue-media DELETE (#4), and the
+    # pull-from-clipper handoff ingest.
+    assert script.count("await handleFetchError(resp)") == 13, (
         "handleFetchError should be awaited at every fetching call site"
     )
     # One deliberate exemption, pinned so it stays deliberate: fetchRetainedMedia
