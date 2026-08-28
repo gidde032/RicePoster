@@ -50,10 +50,16 @@ def test_posters_no_longer_return_unconditional_ok():
 
 def test_frontend_renders_unconfirmed_state(frontend_src):
     """Finding #1 display layer (Reviewer 1, MEDIUM): the UI no longer
-    hardcodes 'IG ✓ TT ✓'; it derives per-platform status from the IDs."""
+    hardcodes 'IG ✓ TT ✓'; it derives per-platform status from the IDs.
+
+    The Slate redesign (#78) renamed the derivation helper from `platStatus`
+    to `classifyPlatform` (now shared by the result footer, condensed summary,
+    and History, and skip-aware). The guarded contract is unchanged: no
+    hardcoded full-success string, and the unconfirmed state is derived, not
+    assumed."""
     html = frontend_src
     assert "IG ✓ TT ✓" not in html
-    assert "platStatus" in html
+    assert "classifyPlatform" in html
     assert "unconfirmed" in html
 
 
@@ -286,8 +292,12 @@ def test_frontend_escapes_untrusted_text(frontend_src):
     the status panel are HTML-escaped before insertion."""
     html = frontend_src
     assert "function esc(" in html
-    assert "${esc(result.errors.join('; '))}" in html
+    # The Slate redesign (#78) filters the run's errors to real (non-skip) ones
+    # before display, but the escaping contract is unchanged: the untrusted
+    # error text is HTML-escaped before it reaches innerHTML.
+    assert "esc(realErrors.join('; '))" in html
     assert "${result.errors.join('; ')}" not in html
+    assert "${realErrors.join('; ')}" not in html
     assert "Posting failed: ${esc(e.message)}" in html
     # Note: the ${e.message} at the caption-generation catch goes into a
     # textarea .value (plain text, not innerHTML) and is intentionally

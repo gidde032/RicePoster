@@ -548,6 +548,47 @@ def test_status_cell_maps_states_to_colour_and_text():
         assert token in body
 
 
+def test_per_slot_footer_is_skip_aware_and_consistent_with_summary():
+    """Follow-up (maintainer-directed): the per-slot result footer must
+    classify outcomes the same way the condensed summary does — a no-session
+    'skipped' platform is not a failure, and only real (non-skip) errors surface
+    as an error string. Both now route through classifyPlatform/platMark."""
+    post = _function_body("postAll")
+    assert "classifyPlatform('IG', result.ig_post_id, result.errors)" in post
+    assert "classifyPlatform('TT', result.tt_post_id, result.errors)" in post
+    assert "platMark(ig)" in post and "platMark(tt)" in post
+    # A skip routes to the muted skipped row, not the red error row.
+    assert "status-item status-skipped" in post
+    assert "ig === 'skipped' || tt === 'skipped'" in post
+    # Only non-skip errors are shown as an error string.
+    assert "!isSkipError(e)" in post
+    # The old blanket "any errors -> error row" is gone.
+    assert "result.errors && result.errors.length > 0" not in post
+
+
+def test_platmark_matches_summary_classification():
+    """platMark maps the shared classification to inline marks with words, so
+    the footer and summary never disagree; a skip reads 'skipped', not 'failed'."""
+    node = _shutil.which("node")
+    if node is None:
+        pytest.skip("node needed")
+    defs = _full_function("platMark")
+    driver = ("console.log(JSON.stringify(['ok','unconfirmed','error','skipped','none']"
+              ".map(platMark)));")
+    proc = _subprocess.run(
+        [node, "--input-type=module", "--eval", defs + "\n" + driver],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    import json as _json
+    marks = _json.loads(proc.stdout.strip())
+    assert marks[0] == "✓"                 # ok
+    assert "unconfirmed" in marks[1]
+    assert "failed" in marks[2]
+    assert "skipped" in marks[3]           # skip is never "failed"
+    assert marks[4] == "—"
+
+
 def test_queue_renders_sectioned_tables():
     """Reviewer 3 (MED-HIGH): Queue was a flat list. It now renders the three
     ratified sections as tables."""

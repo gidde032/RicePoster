@@ -1698,12 +1698,9 @@ function escAttr(s) {
 }
 
 // Backend post IDs are "..._ok_X" when the success element was seen,
-// "..._unconfirmed_X" when it wasn't (post may or may not be live)
-function platStatus(label, id) {
-  if (!id) return `${label} —`;
-  return id.includes('unconfirmed') ? `${label} ⚠ unconfirmed` : `${label} ✓`;
-}
-
+// "..._unconfirmed_X" when it wasn't (post may or may not be live). Per-platform
+// status is derived from the id plus the run's error list by classifyPlatform
+// (below), which the result footer, the condensed summary, and History all share.
 function isUnconfirmed(id) {
   return (id || '').includes('unconfirmed');
 }
@@ -1732,6 +1729,12 @@ function statusCell(status) {
   };
   const [cls, icon, label] = map[status] || ['cell-muted', '—', '—'];
   return `<span class="cell-status ${cls}">${icon} ${esc(label)}</span>`;
+}
+
+// Inline per-platform mark for the per-slot result footer, consistent with the
+// condensed summary and statusCell (a skip is shown as skipped, not failed).
+function platMark(status) {
+  return { ok: '✓', unconfirmed: '⚠ unconfirmed', error: '✗ failed', skipped: '⊘ skipped' }[status] || '—';
 }
 
 // Best-effort media kind from a filename extension (display only).
@@ -2002,22 +2005,40 @@ async function postAll() {
       const account = state.accounts.find(a => a.slot === result.slot);
       const name = account?.name || result.slot;
 
-      if (result.errors && result.errors.length > 0) {
-        const parts = [];
-        if (result.ig_post_id) parts.push(platStatus('IG', result.ig_post_id));
-        if (result.tt_post_id) parts.push(platStatus('TT', result.tt_post_id));
+      // Per-platform outcome, classified exactly as the condensed summary does
+      // (backend _is_skip/_platform_events): a no-session 'skipped' platform is
+      // NOT a failure. Only real (non-skip) errors surface as an error string;
+      // a skip is shown by its mark. Keeps the footer and summary consistent.
+      const ig = classifyPlatform('IG', result.ig_post_id, result.errors);
+      const tt = classifyPlatform('TT', result.tt_post_id, result.errors);
+      const label = `IG ${platMark(ig)}, TT ${platMark(tt)}`;
+      const realErrors = (result.errors || [])
+        .filter(e => typeof e === 'string' && !isSkipError(e));
 
+      if (ig === 'error' || tt === 'error') {
         row.className = 'status-item status-error';
         row.innerHTML = `
           <span class="status-icon">⚠️</span>
-          <span>${esc(name)} — ${parts.join(', ')}${parts.length ? ' | ' : ''}Errors: ${esc(result.errors.join('; '))}</span>
+          <span>${esc(name)} — ${label}${realErrors.length ? ' | Errors: ' + esc(realErrors.join('; ')) : ''}</span>
+        `;
+      } else if (ig === 'unconfirmed' || tt === 'unconfirmed') {
+        row.className = 'status-item status-error';
+        row.innerHTML = `
+          <span class="status-icon">⚠️</span>
+          <span>${esc(name)} — ${label} (check the platform before reposting)</span>
+        `;
+      } else if (ig === 'skipped' || tt === 'skipped') {
+        // A platform was skipped, so this is not a full success — muted, not green.
+        row.className = 'status-item status-skipped';
+        row.innerHTML = `
+          <span class="status-icon">⊘</span>
+          <span>${esc(name)} — ${label}</span>
         `;
       } else {
-        const anyUnconfirmed = isUnconfirmed(result.ig_post_id) || isUnconfirmed(result.tt_post_id);
-        row.className = anyUnconfirmed ? 'status-item status-error' : 'status-item status-success';
+        row.className = 'status-item status-success';
         row.innerHTML = `
-          <span class="status-icon">${anyUnconfirmed ? '⚠️' : '✓'}</span>
-          <span>${esc(name)} — ${platStatus('IG', result.ig_post_id)}, ${platStatus('TT', result.tt_post_id)}${anyUnconfirmed ? ' (check the platform before reposting)' : ''}</span>
+          <span class="status-icon">✓</span>
+          <span>${esc(name)} — ${label}</span>
         `;
       }
     }
