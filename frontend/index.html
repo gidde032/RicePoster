@@ -298,9 +298,9 @@
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--muted-grey);
   }
+  /* Trackers reflect session readiness only (ready / no-session), so just the
+     ok and muted states are used here. */
   .tracker .status-dot.st-ok    { background: var(--ok); }
-  .tracker .status-dot.st-warn  { background: var(--warn); }
-  .tracker .status-dot.st-fail  { background: var(--fail); }
   .tracker .status-dot.st-muted { background: var(--muted-grey); }
   .tracker .st-text {
     font-size: 10px;
@@ -308,19 +308,17 @@
     letter-spacing: 0.4px;
     color: var(--muted-grey);
   }
+  /* Decorative slot affordance (matches the reference glyph). Not interactive:
+     there is no per-slot menu behaviour, so it is aria-hidden and not focusable
+     rather than a control that does nothing. */
   .slot-menu {
     margin-left: auto;
-    background: transparent;
-    border: none;
     color: var(--muted-grey);
     font-size: 18px;
     line-height: 1;
     padding: 6px 8px;
-    min-height: 32px;
-    border-radius: 6px;
-    cursor: pointer;
+    letter-spacing: 1px;
   }
-  .slot-menu:hover { color: var(--primary-text); background: var(--midground); }
 
   .drop-zone {
     width: 100%;
@@ -500,9 +498,11 @@
     gap: 8px;
   }
   .btn-post:hover:not(:disabled) { filter: brightness(1.08); }
-  .btn-post:disabled { background: var(--charcoal); color: var(--muted-grey); }
+  /* Disabled Post All stays legible (rice-grey on interior ~8:1) rather than
+     the near-illegible muted-on-charcoal pairing. */
+  .btn-post:disabled { background: var(--interior); color: var(--rice-grey); border: 1px solid var(--hairline); }
 
-  .btn-small { padding: 8px 14px; font-size: 12px; flex: 0 0 auto; min-height: 36px; }
+  .btn-small { padding: 9px 14px; font-size: 12px; flex: 0 0 auto; min-height: 40px; }
 
   .schedule-row {
     margin-top: 12px;
@@ -614,33 +614,62 @@
     background: var(--interior);
     border: 1px solid var(--hairline);
     border-radius: 10px;
-    padding: 6px 18px;
+    padding: 8px 18px 16px;
     display: none;
+    overflow-x: auto;
   }
-  .queue-item {
-    padding: 12px 0;
-    border-bottom: 1px solid var(--hairline);
+  .history-panel {
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 8px 18px 16px;
+    overflow-x: auto;
+  }
+
+  /* Shared Queue/History data tables (ratified column layouts). */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 13px;
     color: var(--rice-grey);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
   }
-  .queue-item:last-child { border-bottom: none; }
-  .queue-item-interrupted { color: var(--fail); }
-  .queue-item .btn-small { margin-left: 8px; }
-  .queue-media-heading {
-    padding: 14px 0 6px;
-    font-size: 11px;
+  .data-table thead th {
+    text-align: left;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     color: var(--muted-grey);
-    border-top: 1px solid var(--hairline);
-    margin-top: 6px;
+    font-weight: 600;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--hairline);
+    white-space: nowrap;
   }
-  .queue-item-media { color: var(--primary-text); }
-  .queue-media-reason { display: block; font-size: 11px; color: var(--muted-grey); margin-top: 2px; }
+  .data-table tbody td {
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table td strong { color: var(--primary-text); }
+  .data-table .col-action { text-align: right; white-space: nowrap; }
+  .cell-time { color: var(--muted-grey); white-space: nowrap; }
+  .cell-sub { display: block; font-size: 11px; color: var(--muted-grey); margin-top: 2px; }
+  .cell-muted { color: var(--muted-grey); }
+  .cell-caption { color: var(--muted-grey); max-width: 340px; }
+  .cell-err { display: block; font-size: 11px; color: var(--fail); margin-top: 3px; }
+  .cell-status { white-space: nowrap; font-weight: 500; }
+
+  .queue-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--primary-text);
+    margin: 18px 0 8px;
+  }
+  .queue-section-title:first-child { margin-top: 6px; }
+  .queue-empty { padding: 14px 0; font-size: 13px; color: var(--muted-grey); }
+  .queue-note { font-size: 12px; color: var(--muted-grey); margin-top: 10px; }
+  .queue-item-interrupted td:first-child { color: var(--fail); }
+  .queue-media-reason { color: var(--muted-grey); }
 
   .history-scheduled {
     display: inline-block;
@@ -651,27 +680,8 @@
     border-radius: 5px;
     background: var(--charcoal);
     color: var(--primary-text);
-    margin-left: 6px;
   }
-
-  .history-panel {
-    background: var(--interior);
-    border: 1px solid var(--hairline);
-    border-radius: 10px;
-    padding: 6px 18px;
-  }
-  .history-item { padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; color: var(--rice-grey); }
-  .history-item:last-child { border-bottom: none; }
-  .history-time { color: var(--muted-grey); margin-right: 6px; }
-  .history-item strong { color: var(--primary-text); }
   .history-mode { text-transform: uppercase; font-size: 10px; color: var(--warn); margin-left: 4px; }
-  .history-caption {
-    color: var(--muted-grey);
-    margin-top: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .history-empty { padding: 14px 0; font-size: 13px; color: var(--muted-grey); }
 
   /* ============================ Help ============================ */
@@ -786,26 +796,26 @@
 
     <nav aria-label="Primary">
       <div class="nav-group">Workspace</div>
-      <button type="button" class="nav-item" id="nav-localmedia" data-view="localmedia" onclick="navTo('localmedia')">
+      <button type="button" class="nav-item" id="nav-localmedia" data-view="localmedia" aria-label="Local Media" onclick="navTo('localmedia')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         <span class="nav-label">Local Media</span>
       </button>
-      <button type="button" class="nav-item" id="nav-review" data-view="review" aria-current="page" onclick="navTo('review')">
+      <button type="button" class="nav-item" id="nav-review" data-view="review" aria-current="page" aria-label="Review" onclick="navTo('review')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
         <span class="nav-label">Review</span>
       </button>
-      <button type="button" class="nav-item" id="nav-queue" data-view="queue" onclick="navTo('queue')">
+      <button type="button" class="nav-item" id="nav-queue" data-view="queue" aria-label="Queue" onclick="navTo('queue')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12l16-8-6 16-3-6-7-2z"/></svg>
         <span class="nav-label">Queue</span>
       </button>
-      <button type="button" class="nav-item" id="nav-history" data-view="history" onclick="navTo('history')">
+      <button type="button" class="nav-item" id="nav-history" data-view="history" aria-label="History" onclick="navTo('history')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>
         <span class="nav-label">History</span>
       </button>
     </nav>
 
     <div class="sidebar-foot">
-      <button type="button" class="nav-item" id="nav-help" data-view="help" onclick="navTo('help')">
+      <button type="button" class="nav-item" id="nav-help" data-view="help" aria-label="Help" onclick="navTo('help')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><path d="M12 17h.01"/></svg>
         <span class="nav-label">Help</span>
       </button>
@@ -828,7 +838,7 @@
     </header>
 
     <!-- ---------- Review (default) ---------- -->
-    <section class="view" id="view-review" role="tabpanel" aria-label="Review">
+    <section class="view" role="region" id="view-review" aria-label="Review">
       <div class="status-bar" id="statusBar" style="display:none"></div>
 
       <div class="slots-container" id="slotsContainer"></div>
@@ -867,7 +877,7 @@
     </section>
 
     <!-- ---------- Local Media ---------- -->
-    <section class="view" id="view-localmedia" role="tabpanel" aria-label="Local Media" hidden>
+    <section class="view" role="region" id="view-localmedia" aria-label="Local Media" hidden>
       <div class="view-head lm-head">
         <div>
           <h1 class="view-title">Local Media</h1>
@@ -890,7 +900,7 @@
     </section>
 
     <!-- ---------- Queue ---------- -->
-    <section class="view" id="view-queue" role="tabpanel" aria-label="Queue" hidden>
+    <section class="view" role="region" id="view-queue" aria-label="Queue" hidden>
       <div class="view-head">
         <h1 class="view-title">Queue</h1>
         <p class="view-sub">Scheduled and interrupted batches. Honest evidence retained.</p>
@@ -899,7 +909,7 @@
     </section>
 
     <!-- ---------- History ---------- -->
-    <section class="view" id="view-history" role="tabpanel" aria-label="History" hidden>
+    <section class="view" role="region" id="view-history" aria-label="History" hidden>
       <div class="view-head">
         <h1 class="view-title">History</h1>
         <p class="view-sub">Recent posting runs and outcomes.</p>
@@ -908,7 +918,7 @@
     </section>
 
     <!-- ---------- Help ---------- -->
-    <section class="view" id="view-help" role="tabpanel" aria-label="Help" hidden>
+    <section class="view" role="region" id="view-help" aria-label="Help" hidden>
       <div class="view-head">
         <h1 class="view-title">Help</h1>
         <p class="view-sub">Quick guidance for confident, safe posting.</p>
@@ -1103,7 +1113,9 @@ async function init() {
     if (data.post_mode === 'browser') {
       state.headlessOverride = !!data.headless;
       badges.innerHTML += `<span class="badge badge-toggle" id="headlessBadge"
-        onclick="toggleHeadless()" title="Click to toggle for this session"></span>`;
+        role="button" tabindex="0" onclick="toggleHeadless()"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeadless()}"
+        title="Click to toggle for this session"></span>`;
       renderHeadlessBadge();
     }
 
@@ -1214,7 +1226,7 @@ function renderSlots() {
         <span class="slot-num" title="${escAttr(account.name)}" aria-label="${escAttr('Slot ' + num + ': ' + account.name)}">${num}</span>
         ${sessDots}
         <span id="mediaTypeBadge_${slot}" class="media-type-badge" style="display:none"></span>
-        <button type="button" class="slot-menu" aria-label="${escAttr('Slot ' + num + ' options')}" title="Slot options">&#8943;</button>
+        <span class="slot-menu" aria-hidden="true">&#8943;</span>
       </div>
 
       <div class="slot-media">
@@ -1234,7 +1246,7 @@ function renderSlots() {
       <div class="slot-fields">
         <div>
           <div class="field-label">Topic / description (optional)</div>
-          <input type="text" id="topic_${slot}" placeholder="e.g. what happens in the clip, who's in it"
+          <input type="text" id="topic_${slot}" aria-label="${escAttr('Topic / description for slot ' + num)}" placeholder="e.g. what happens in the clip, who's in it"
                  oninput="state.slots['${slot}'].topic = this.value; updateButtons()">
         </div>
         <div>
@@ -1696,6 +1708,37 @@ function isUnconfirmed(id) {
   return (id || '').includes('unconfirmed');
 }
 
+// Canonical per-platform outcome for a post id + the entry's error list, using
+// the same skip-vs-error rule as backend/poster_browser.py::_platform_events.
+// Unlike the notifier, a clean success is reported as 'ok' — the summary and
+// History count confirmed posts, not only the noteworthy ones.
+function classifyPlatform(prefix, postId, errors) {
+  const errs = (errors || []).filter(e => typeof e === 'string' && e.startsWith(prefix));
+  if (errs.filter(e => !isSkipError(e)).length) return 'error';
+  if (errs.some(isSkipError)) return 'skipped';
+  if (postId) return isUnconfirmed(postId) ? 'unconfirmed' : 'ok';
+  return 'none';
+}
+
+// A coloured, text-bearing status cell — colour is supplemental to the word,
+// so status is never conveyed by colour alone.
+function statusCell(status) {
+  if (status === 'none' || !status) return '<span class="cell-status cell-muted">—</span>';
+  const map = {
+    ok:          ['rs-ok',    '✓', 'Confirmed'],
+    unconfirmed: ['rs-warn',  '⚠', 'Unconfirmed'],
+    error:       ['rs-fail',  '✗', 'Failed'],
+    skipped:     ['rs-muted', '⊘', 'Skipped'],
+  };
+  const [cls, icon, label] = map[status] || ['cell-muted', '—', '—'];
+  return `<span class="cell-status ${cls}">${icon} ${esc(label)}</span>`;
+}
+
+// Best-effort media kind from a filename extension (display only).
+function mediaKind(name) {
+  return /\.(mp4|mov|webm|m4v|avi|mkv)$/i.test(name || '') ? 'Video' : 'Image';
+}
+
 // Caption length cap. `state.captionLimit` is the authoritative value (served
 // by /api/accounts from the backend's MAX_CAPTION_LENGTH, #53); this local
 // constant is only the fallback before init() resolves and is intentionally
@@ -1789,20 +1832,33 @@ async function toggleHistory() {
     if (!d.entries.length) {
       panel.innerHTML = '<div class="history-empty">No post history yet.</div>';
     } else {
-      panel.innerHTML = d.entries.map(en => {
+      const rows = d.entries.map(en => {
         const time = esc(fmtHistoryTime(en.ts));
-        const statuses = `${platStatus('IG', en.ig_post_id)}, ${platStatus('TT', en.tt_post_id)}`;
-        const errs = (en.errors && en.errors.length)
-          ? ` — ${esc(en.errors.join('; ').slice(0, 120))}` : '';
+        const igCell = statusCell(classifyPlatform('IG', en.ig_post_id, en.errors));
+        const ttCell = statusCell(classifyPlatform('TT', en.tt_post_id, en.errors));
         const mode = en.post_mode !== 'browser'
           ? `<span class="history-mode">${esc(en.post_mode)}</span>` : '';
-        const sched = en.scheduled ? '<span class="history-scheduled">Scheduled</span>' : '';
-        return `<div class="history-item">
-          <span class="history-time">${time}</span><strong>${esc(en.slot)}</strong>${mode}${sched}
-          · ${esc(en.file || '')} · ${statuses}${errs}
-          <div class="history-caption">${esc((en.caption || '').slice(0, 100))}</div>
-        </div>`;
+        const sched = en.scheduled
+          ? '<span class="history-scheduled">Scheduled</span>' : '<span class="cell-muted">—</span>';
+        const errs = (en.errors && en.errors.length)
+          ? `<span class="cell-err">${esc(en.errors.join('; ').slice(0, 120))}</span>` : '';
+        return `<tr>
+          <td class="cell-time">${time}</td>
+          <td><strong>${esc(en.slot)}</strong>${mode}</td>
+          <td>${esc(en.file || '')}<span class="cell-sub">${mediaKind(en.file || '')}</span></td>
+          <td>${igCell}</td>
+          <td>${ttCell}</td>
+          <td>${sched}</td>
+          <td class="cell-caption">${esc((en.caption || '').slice(0, 100))}${errs}</td>
+        </tr>`;
       }).join('');
+      panel.innerHTML = `<table class="data-table">
+        <caption class="sr-only">Recent posting runs and outcomes</caption>
+        <thead><tr>
+          <th>Time (local)</th><th>Slot</th><th>Media</th>
+          <th>Instagram</th><th>TikTok</th><th>Scheduled</th><th>Caption preview</th>
+        </tr></thead>
+        <tbody>${rows}</tbody></table>`;
     }
     panel.style.display = '';
   } catch (e) {
@@ -1966,17 +2022,11 @@ async function postAll() {
       }
     }
 
-    // Final condensed summary from the run's results (per-platform outcomes).
+    // Final condensed summary from the run's results (per-platform outcomes),
+    // classified exactly as the backend and the live progress feed do.
     renderSummary({
       active: false, current: null, waiting: null,
-      events: results.flatMap(r => {
-        if (r.errors && r.errors.length) return [{ status: 'error' }];
-        const evs = [];
-        for (const id of [r.ig_post_id, r.tt_post_id]) {
-          if (id) evs.push({ status: isUnconfirmed(id) ? 'unconfirmed' : 'ok' });
-        }
-        return evs;
-      }),
+      events: summaryEventsFromResults(results),
     });
   } catch (e) {
     stopProgressPolling();
@@ -2102,23 +2152,45 @@ async function fetchRetainedMedia() {
 function renderQueuePanel(batches, snapshots) {
   const panel = el('queuePanel');
   const retained = snapshots || [];
-  const visible = batches.filter(b => b.status === 'pending' || b.status === 'interrupted');
-  if (!visible.length && !retained.length) {
-    panel.innerHTML = '<div style="padding:10px 0;font-size:12px;color:#666">No scheduled batches.</div>';
+  const pending = (batches || []).filter(b => b.status === 'pending');
+  const interrupted = (batches || []).filter(b => b.status === 'interrupted');
+  if (!pending.length && !interrupted.length && !retained.length) {
+    panel.innerHTML = '<div class="queue-empty">No scheduled batches.</div>';
     return;
   }
-  panel.innerHTML = (visible.length ? visible.map(b => {
+
+  // Scheduled and interrupted batches use the same cancelQueueBatch handler
+  // (DELETE /api/queue/{id}); only the label differs (Cancel vs Dismiss).
+  const batchRow = (b, action) => {
     const slots = (b.slots || []).map(s => s.slot).join(', ');
     const localTime = new Date(b.fire_time).toLocaleString();
-    const isInt = b.status === 'interrupted';
-    const cls = isInt ? 'queue-item queue-item-interrupted' : 'queue-item';
-    const statusLabel = isInt ? ' [INTERRUPTED]' : '';
-    const actionLabel = isInt ? 'Dismiss' : 'Cancel';
-    return `<div class="${cls}">
-      <span>${esc(localTime)} — slots: ${esc(slots)}${statusLabel}</span>
-      <button class="btn-secondary btn-small" onclick="cancelQueueBatch('${escAttr(b.id)}')">${actionLabel}</button>
-    </div>`;
-  }).join('') : '') + renderRetainedMedia(retained);
+    const st = action === 'Dismiss'
+      ? '<span class="cell-status rs-fail">● Interrupted</span>'
+      : '<span class="cell-status rs-ok">● Scheduled</span>';
+    return `<tr${action === 'Dismiss' ? ' class="queue-item-interrupted"' : ''}>
+      <td>${esc(localTime)}</td>
+      <td>${esc(slots)}</td>
+      <td>${st}</td>
+      <td class="col-action"><button class="btn-secondary btn-small" onclick="cancelQueueBatch('${escAttr(b.id)}')">${action}</button></td>
+    </tr>`;
+  };
+
+  let html = '';
+  if (pending.length) {
+    html += `<div class="queue-section-title">Scheduled Batches</div>
+      <table class="data-table"><caption class="sr-only">Scheduled batches</caption>
+      <thead><tr><th>Local fire time</th><th>Slots</th><th>Status</th><th class="col-action">Action</th></tr></thead>
+      <tbody>${pending.map(b => batchRow(b, 'Cancel')).join('')}</tbody></table>`;
+  }
+  if (interrupted.length) {
+    html += `<div class="queue-section-title">Interrupted Batches</div>
+      <table class="data-table"><caption class="sr-only">Interrupted batches</caption>
+      <thead><tr><th>Stopped at</th><th>Slots</th><th>Status</th><th class="col-action">Action</th></tr></thead>
+      <tbody>${interrupted.map(b => batchRow(b, 'Dismiss')).join('')}</tbody></table>
+      <div class="queue-note">Interrupted batches are retained as honest evidence. No posts were created after the stop point.</div>`;
+  }
+  html += renderRetainedMedia(retained);
+  panel.innerHTML = html;
 }
 
 function renderRetainedMedia(snapshots) {
@@ -2127,15 +2199,18 @@ function renderRetainedMedia(snapshots) {
     const when = s.modified ? new Date(s.modified).toLocaleString() : 'unknown date';
     const kb = Math.max(1, Math.round((s.size_bytes || 0) / 1024));
     const files = (s.files || []).length;
-    return `<div class="queue-item queue-item-media">
-      <span>
-        <strong>${esc(s.batch_id.slice(0, 8))}</strong> — ${files} file(s), ${kb} KB, ${esc(when)}
-        <span class="queue-media-reason">${esc(s.reason || '')}</span>
-      </span>
-      <button class="btn-secondary btn-small" onclick="deleteQueueMedia('${escAttr(s.batch_id)}', '${escAttr(s.classification)}', '${escAttr(s.reason || '')}')">Delete media</button>
-    </div>`;
+    return `<tr class="queue-item-media">
+      <td><strong>${esc(s.batch_id.slice(0, 24))}</strong><span class="cell-sub">Captured ${esc(when)}</span></td>
+      <td>${files} file(s)</td>
+      <td>${kb} KB</td>
+      <td class="queue-media-reason">${esc(s.reason || '')}</td>
+      <td class="col-action"><button class="btn-secondary btn-small" onclick="deleteQueueMedia('${escAttr(s.batch_id)}', '${escAttr(s.classification)}', '${escAttr(s.reason || '')}')">Delete media</button></td>
+    </tr>`;
   }).join('');
-  return `<div class="queue-media-heading">Retained media (${snapshots.length})</div>${rows}`;
+  return `<div class="queue-section-title">Retained Media (${snapshots.length})</div>
+    <table class="data-table"><caption class="sr-only">Retained media snapshots</caption>
+    <thead><tr><th>Snapshot</th><th>Files</th><th>Size</th><th>Retention reason</th><th class="col-action">Action</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
 }
 
 // --- queue polling while the panel is open (Issue #7) ---
@@ -2287,6 +2362,30 @@ function summaryHtml(events) {
   if (fail) parts.push(`<span class="rs-fail">${fail} failed</span>`);
   if (skip) parts.push(`<span class="rs-muted">${skip} skipped</span>`);
   return parts.length ? parts.join(' · ') : '<span class="rs-muted">No results yet</span>';
+}
+
+// A "skipped (no session ...)" / "skipped (pre-flight ...)" line is a skip, not
+// a failure — mirrors backend/poster_browser.py::_is_skip. Kept in lockstep so
+// the completion summary classifies a no-session platform the same way the live
+// progress feed and the notifier already do.
+function isSkipError(e) {
+  return typeof e === 'string'
+    && (e.includes('skipped (no session') || e.includes('skipped (pre-flight'));
+}
+
+// Per-platform outcome events from a run's PostResult list, classified exactly
+// as backend/poster_browser.py::_platform_events does: a real error is 'error',
+// a skip is 'skipped' (NOT counted as failed), a present post id is 'unconfirmed'
+// or 'ok'. Extracted as a pure function so it can be unit-tested directly.
+function summaryEventsFromResults(results) {
+  const events = [];
+  for (const r of results || []) {
+    for (const [postId, prefix] of [[r.ig_post_id, 'IG'], [r.tt_post_id, 'TT']]) {
+      const st = classifyPlatform(prefix, postId, r.errors);
+      if (st !== 'none') events.push({ status: st });
+    }
+  }
+  return events;
 }
 
 function renderSummary(p) {

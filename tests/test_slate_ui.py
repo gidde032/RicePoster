@@ -370,3 +370,194 @@ def test_narrow_layout_has_responsive_rules():
     html = _html()
     assert "@media (max-width: 860px)" in html
     assert "grid-template-columns: 1fr" in html
+
+
+# ---------------------------------------------------------------------------
+# Accepted review-finding repairs (cold review of feat/slate-ui @ 10af0cc)
+# ---------------------------------------------------------------------------
+
+import re as _re  # noqa: E402
+import shutil as _shutil  # noqa: E402
+import subprocess as _subprocess  # noqa: E402
+
+
+def _full_function(name):
+    """The complete `function name(...) {...}` declaration (signature + body).
+
+    `_function_body` returns only the brace block, which is not independently
+    executable; this returns the whole declaration so it can be run in node.
+    """
+    script = _script()
+    m = _re.search(rf"\nfunction {_re.escape(name)}\s*\(", script)
+    assert m, f"{name} not found"
+    start = m.start() + 1
+    i = script.index("{", start)
+    depth = 0
+    for j in range(i, len(script)):
+        if script[j] == "{":
+            depth += 1
+        elif script[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return script[start : j + 1]
+    raise AssertionError(f"unbalanced braces extracting {name}")
+
+
+# --- R1-1: a no-session skip must count as skipped, not failed --------------
+
+def test_summary_classifies_a_no_session_skip_as_skipped_not_failed():
+    """Reviewer 1 (MEDIUM): the run-completion summary bucketed any slot whose
+    `errors` was non-empty as 'error', but the backend appends a
+    'skipped (no session ...)' string to `errors` for a platform with no saved
+    session while emitting a distinct 'skipped' event. This runs the actual
+    extracted classifier in node against that exact shape."""
+    node = _shutil.which("node")
+    if node is None:
+        pytest.skip("node needed to execute the classifier")
+    defs = "\n".join(
+        _full_function(n)
+        for n in ("isUnconfirmed", "isSkipError", "classifyPlatform", "summaryEventsFromResults")
+    )
+    driver = """
+const results = [
+  {ig_post_id:'ig_ok_A', tt_post_id:'', errors:['TT post: skipped (no session — run session_manager login tiktok)']},
+  {ig_post_id:'ig_ok_B', tt_post_id:'tt_unconfirmed_B', errors:[]},
+  {ig_post_id:'', tt_post_id:'', errors:['IG post: upload dialog did not appear']},
+];
+console.log(JSON.stringify(summaryEventsFromResults(results).map(e => e.status)));
+"""
+    proc = _subprocess.run(
+        [node, "--input-type=module", "--eval", defs + driver],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    import json as _json
+    statuses = _json.loads(proc.stdout.strip())
+    # IG ok + TT skip / IG ok + TT unconfirmed / IG failed + TT none.
+    assert statuses == ["ok", "skipped", "ok", "unconfirmed", "error"], statuses
+    # The load-bearing assertion: exactly one genuine failure, and the
+    # no-session platform is 'skipped', never 'error'.
+    assert statuses.count("error") == 1
+    assert "skipped" in statuses
+
+
+def test_skip_detection_mirrors_the_backend_strings():
+    """classifyPlatform's skip rule must match backend _is_skip's markers."""
+    body = _function_body("isSkipError")
+    assert "skipped (no session" in body and "skipped (pre-flight" in body
+
+
+# --- R2-1 / R2-5: accessible names ------------------------------------------
+
+@pytest.mark.parametrize("view,label", [
+    ("localmedia", "Local Media"), ("review", "Review"), ("queue", "Queue"),
+    ("history", "History"), ("help", "Help"),
+])
+def test_nav_buttons_have_explicit_accessible_names(view, label):
+    """Reviewer 2 (CRITICAL): below 860px the nav label is display:none, so an
+    icon button with no aria-label had no accessible name. Each nav button now
+    carries an explicit aria-label independent of label visibility."""
+    html = _html()
+    btn = _re.search(rf'id="nav-{view}"[^>]*>', html).group(0)
+    assert f'aria-label="{label}"' in btn
+
+
+def test_topic_input_has_aria_label():
+    """Reviewer 2 (MEDIUM): the topic field was the one input in the card
+    without an aria-label."""
+    assert 'id="topic_${slot}" aria-label=' in _script()
+
+
+# --- R2-2: the headless toggle is keyboard operable -------------------------
+
+def test_headless_badge_is_keyboard_operable():
+    """Reviewer 2 (HIGH): the Headless/Visible toggle (controls live browser
+    visibility) was mouse-only. It now mirrors the queue badge's keyboard
+    affordance."""
+    script = _script()
+    hb = script.split('id="headlessBadge"', 1)[1].split("</span>", 1)[0]
+    assert 'role="button"' in hb and 'tabindex="0"' in hb
+    assert "onkeydown=" in hb and "toggleHeadless()" in hb
+
+
+# --- R2-3a: the slot menu is decorative, not an inert control ---------------
+
+def test_slot_menu_is_decorative_not_an_inert_control():
+    """Reviewer 2 (MEDIUM): the slot menu was a focusable, labelled button with
+    no handler. It is now an aria-hidden decorative glyph, not a keyboard/SR
+    dead-end."""
+    body = _function_body("renderSlots")
+    assert '<span class="slot-menu" aria-hidden="true">' in body
+    # It is a span, never a <button> (no keyboard/SR dead-end).
+    assert 'class="slot-menu"' in body
+    assert 'button type="button" class="slot-menu"' not in _script()
+
+
+# --- R2-4: no tabpanel role without a tablist -------------------------------
+
+def test_views_use_region_not_orphan_tabpanel_role():
+    """Reviewer 2 (MEDIUM): role=tabpanel implies a tablist/tab structure that
+    does not exist. Views are landmark regions instead."""
+    html = _html()
+    assert 'role="tabpanel"' not in html
+    assert html.count('class="view" role="region"') == 5
+
+
+# --- R2-6 / R2-7 / R2-8: contrast, targets, dead CSS ------------------------
+
+def test_disabled_post_all_is_legible():
+    """Reviewer 2 (LOW): disabled Post All used muted-grey on charcoal (2.88:1).
+    It now uses a legible pairing."""
+    html = _html()
+    rule = html.split(".btn-post:disabled {", 1)[1].split("}", 1)[0]
+    assert "var(--muted-grey)" not in rule
+    assert "var(--rice-grey)" in rule
+
+
+def test_small_button_target_size():
+    html = _html()
+    rule = html.split(".btn-small {", 1)[1].split("}", 1)[0]
+    assert "min-height: 40px" in rule
+
+
+def test_dead_tracker_status_css_removed():
+    """Reviewer 2 (LOW): .st-warn/.st-fail were never applied (trackers are
+    session-only)."""
+    html = _html()
+    assert ".status-dot.st-warn" not in html
+    assert ".status-dot.st-fail" not in html
+
+
+# --- R3-1 / R3-2: History and Queue table layouts + coloured status ---------
+
+def test_history_renders_a_table_with_coloured_status():
+    """Reviewer 3 (HIGH): History dropped status colour. It now renders the
+    ratified column table with coloured status cells."""
+    body = _function_body("toggleHistory")
+    assert "data-table" in body
+    assert "classifyPlatform('IG'" in body and "classifyPlatform('TT'" in body
+    assert "statusCell(" in body
+    for col in ("Time (local)", "Instagram", "TikTok", "Scheduled", "Caption preview"):
+        assert col in body, f"history table missing column {col}"
+
+
+def test_status_cell_maps_states_to_colour_and_text():
+    body = _function_body("statusCell")
+    # Colour classes AND words together — never colour alone.
+    for token in ("rs-ok", "rs-warn", "rs-fail", "Confirmed", "Unconfirmed", "Failed", "Skipped"):
+        assert token in body
+
+
+def test_queue_renders_sectioned_tables():
+    """Reviewer 3 (MED-HIGH): Queue was a flat list. It now renders the three
+    ratified sections as tables."""
+    panel = _function_body("renderQueuePanel")
+    for title in ("Scheduled Batches", "Interrupted Batches"):
+        assert title in panel
+    assert "data-table" in panel
+    retained = _function_body("renderRetainedMedia")
+    assert "Retained Media" in retained and "data-table" in retained
+    # Cancel/Dismiss share the existing handler; Delete media keeps its exact
+    # escAttr onclick (also pinned by test_esc_attribute_safety).
+    assert "cancelQueueBatch('${escAttr(b.id)}')" in panel
+    assert "deleteQueueMedia('${escAttr(s.batch_id)}'" in retained
