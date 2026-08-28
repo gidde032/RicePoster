@@ -67,6 +67,15 @@ prompts/*.json
 !prompts/sports.json
 !prompts/music-fanpage.json
 
+# Slate design authority + runtime logo are local-only assets, like the
+# internal design docs. `test_no_screenshots_tracked_and_gitignore_covers_debug`
+# (#60) forbids ANY tracked PNG, so the ratified reference PNGs and the served
+# logo stay on the maintainer's disk. The frontend references
+# /static/logo-ratified.png; on a clean clone it degrades to the img alt text.
+# Byte identity is pinned by a SHA-256 test that skips when the file is absent.
+design/
+frontend/logo-ratified.png
+
 # Uploaded media (temporary)
 media/*
 !media/.gitkeep

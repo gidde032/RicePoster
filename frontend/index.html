@@ -5,554 +5,982 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RicePoster</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* ---- RiceClipper Slate tokens (exact values, ratified contract) ---- */
+  :root {
+    --backdrop:     #04060A; /* page, header, sidebar, logo background */
+    --midground:    #0C1116; /* workspace, recessed regions, slot surfaces */
+    --interior:     #14191E; /* cards, inputs, menus, panels */
+    --hairline:     #2B3136; /* quiet borders and dividers */
+    --control-line: #626A70; /* inactive control boundaries */
+    --rice-grey:    #AEB3B6; /* ready, selected, progress, neutral emphasis */
+    --muted-grey:   #80878C; /* secondary / inactive text */
+    --charcoal:     #3B4044; /* strong controls and logo object */
+    --primary-text: #E5E8EA; /* readable labels and content */
+    --focus:        #D5D9DB; /* keyboard focus ring */
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0f0f0f;
-    color: #e0e0e0;
-    min-height: 100vh;
-    padding: 24px;
+    /* Operational status hues — permitted ONLY for genuine ready / warn /
+       fail states, never for chrome. Text always carries the meaning too. */
+    --ok:    #5FA97C;
+    --warn:  #C79A4B;
+    --fail:  #C56B6B;
   }
 
-  .header {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { color-scheme: dark; }
+
+  body {
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--backdrop);
+    color: var(--primary-text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible keyboard focus everywhere (accessibility contract). */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  /* ============================ App shell ============================ */
+
+  .app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    background: var(--backdrop);
+    border-right: 1px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 14px;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 8px 18px;
+  }
+
+  .brand img {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: var(--backdrop);
+    flex: 0 0 auto;
+  }
+
+  .brand-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    line-height: 1.15;
+    color: var(--primary-text);
+  }
+  .brand-name span { display: block; color: var(--muted-grey); font-weight: 600; }
+
+  .nav-group {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted-grey);
+    padding: 14px 10px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: var(--rice-grey);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    min-height: 40px;
+  }
+  .nav-item .nav-ico { width: 18px; height: 18px; flex: 0 0 auto; color: var(--muted-grey); }
+  .nav-item:hover:not([aria-current="page"]) { background: var(--midground); color: var(--primary-text); }
+  /* Selected state is a filled surface + left marker + brighter text, so it
+     never depends on colour alone (accessibility contract). */
+  .nav-item[aria-current="page"] {
+    background: var(--interior);
+    border-color: var(--hairline);
+    color: var(--primary-text);
+    box-shadow: inset 3px 0 0 var(--rice-grey);
+  }
+  .nav-item[aria-current="page"] .nav-ico { color: var(--primary-text); }
+
+  .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+  .copyright { padding: 12px 10px 0; font-size: 11px; color: var(--muted-grey); }
+
+  /* ============================ Main / topbar ============================ */
+
+  .main { display: flex; flex-direction: column; min-width: 0; background: var(--midground); }
+
+  .topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #2a2a2a;
+    gap: 16px;
+    padding: 16px 28px;
+    background: var(--backdrop);
+    border-bottom: 1px solid var(--hairline);
+    position: sticky;
+    top: 0;
+    z-index: 5;
   }
 
-  .header h1 {
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    color: #fff;
-  }
+  .breadcrumb { font-size: 15px; font-weight: 600; color: var(--primary-text); }
+  .breadcrumb .crumb-muted { color: var(--muted-grey); font-weight: 500; }
 
-  .header-badges {
-    display: flex;
-    gap: 8px;
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+  .topbar-shortcut {
+    display: inline-flex;
     align-items: center;
+    gap: 8px;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    color: var(--rice-grey);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 40px;
+  }
+  .topbar-shortcut:hover { color: var(--primary-text); border-color: var(--control-line); }
+
+  .profile-initial {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--rice-grey);
+    flex: 0 0 auto;
   }
 
+  .header-badges { display: flex; gap: 8px; align-items: center; }
+
+  /* Mode / headless / queue chips are chrome, so they stay neutral Slate greys —
+     no blue/purple/cyan/gold. They carry an operational label, not a status. */
   .badge {
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 4px 10px;
-    border-radius: 4px;
+    letter-spacing: 0.8px;
+    padding: 5px 10px;
+    border-radius: 6px;
     font-weight: 600;
+    background: var(--interior);
+    color: var(--rice-grey);
+    border: 1px solid var(--hairline);
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .badge-toggle { cursor: pointer; user-select: none; }
-  .badge-toggle:hover { filter: brightness(1.3); }
+  .badge-toggle:hover { border-color: var(--control-line); color: var(--primary-text); }
 
-  .badge-mock { background: #3b2a00; color: #ffb84d; }
-  .badge-browser { background: #1e2a1e; color: #6dca6d; }
-  .badge-api { background: #1e1e2a; color: #6d6dca; }
-  .badge-headless { background: #1e2a2a; color: #6dcaca; }
-  .badge-visible { background: #2a2a1e; color: #caca6d; }
+  .badge-mock,
+  .badge-browser,
+  .badge-api,
+  .badge-headless,
+  .badge-visible { background: var(--interior); color: var(--rice-grey); }
 
+  .queue-badge {
+    background: var(--interior);
+    color: var(--rice-grey);
+    border: 1px solid var(--hairline);
+    cursor: pointer;
+    user-select: none;
+  }
+  .queue-badge:hover { border-color: var(--control-line); color: var(--primary-text); }
+
+  /* ============================ Views ============================ */
+
+  .view { padding: 28px; max-width: 1560px; width: 100%; margin: 0 auto; }
+  .view[hidden] { display: none; }
+
+  .view-head { margin-bottom: 20px; }
+  .view-title { font-size: 24px; font-weight: 700; color: var(--primary-text); }
+  .view-sub { font-size: 13px; color: var(--muted-grey); margin-top: 4px; }
+
+  /* ---- session strip (browser mode, top of Review) ---- */
   .status-bar {
-    max-width: 900px;
-    margin: 0 auto 20px;
-    background: #141414;
-    border: 1px solid #222;
-    border-radius: 6px;
-    padding: 12px 16px;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 18px;
     display: flex;
-    gap: 24px;
+    flex-wrap: wrap;
+    gap: 20px;
     font-size: 12px;
-    color: #888;
+    color: var(--muted-grey);
   }
-
-  .status-bar-section {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
+  .status-bar-section { display: flex; align-items: center; gap: 6px; }
   .status-bar-section .label {
-    color: #555;
+    color: var(--muted-grey);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-size: 10px;
     margin-right: 4px;
   }
+  .status-bar-section strong { color: var(--primary-text) !important; }
 
-  .session-dot {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-  }
+  .session-dot { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+  .session-dot .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .dot-on  { background: var(--ok); }
+  .dot-off { background: var(--muted-grey); }
 
-  .session-dot .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .dot-on { background: #4ade80; }
-  .dot-off { background: #f87171; }
+  /* ============================ Review: slot cards ============================ */
 
   .slots-container {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    max-width: 900px;
-    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    align-items: start;
   }
 
   .slot-card {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    padding: 20px;
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 20px;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
   }
 
-  .slot-label {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #888;
-    margin-bottom: 12px;
-    grid-column: 1 / -1;
+  /* Slot header: number + horizontal Instagram/TikTok trackers + menu.
+     No platform-name text; the two platforms are never stacked. */
+  .slot-label,
+  .slot-head {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
+  .slot-num {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary-text);
+    min-width: 18px;
+  }
+  .slot-trackers { display: flex; align-items: center; gap: 14px; }
+  .tracker { display: inline-flex; align-items: center; gap: 5px; }
+  .tracker .plat-ico { width: 17px; height: 17px; color: var(--rice-grey); flex: 0 0 auto; }
+  .tracker .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted-grey);
+  }
+  .tracker .status-dot.st-ok    { background: var(--ok); }
+  .tracker .status-dot.st-warn  { background: var(--warn); }
+  .tracker .status-dot.st-fail  { background: var(--fail); }
+  .tracker .status-dot.st-muted { background: var(--muted-grey); }
+  .tracker .st-text {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted-grey);
+  }
+  .slot-menu {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--muted-grey);
+    font-size: 18px;
+    line-height: 1;
+    padding: 6px 8px;
+    min-height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .slot-menu:hover { color: var(--primary-text); background: var(--midground); }
 
   .drop-zone {
-    width: 200px;
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    max-height: 340px;
     min-height: 200px;
-    height: auto;
-    border: 2px dashed #333;
-    border-radius: 6px;
+    border: 1px dashed var(--control-line);
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     position: relative;
     overflow: hidden;
+    background: var(--midground);
     transition: border-color 0.2s;
   }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--rice-grey); }
+  .drop-zone.has-file { border-style: solid; border-color: var(--hairline); }
 
-  .drop-zone:hover, .drop-zone.dragover {
-    border-color: #666;
+  .drop-zone-text { font-size: 12px; color: var(--muted-grey); text-align: center; padding: 8px; }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-zone img, .drop-zone video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+  .slot-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted-grey);
+    margin-bottom: 6px;
   }
 
-  .drop-zone.has-file {
-    border-style: solid;
-    border-color: #333;
-  }
-
-  .drop-zone-text {
-    font-size: 13px;
-    color: #666;
-    text-align: center;
-    padding: 8px;
-  }
-
-  .drop-zone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .drop-zone img, .drop-zone video {
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-  }
-
-  .slot-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .field-label {
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 4px;
-  }
+  .slot-fields { display: flex; flex-direction: column; gap: 12px; }
+  .field-label { font-size: 12px; color: var(--muted-grey); margin-bottom: 4px; }
 
   input[type="text"], textarea, select {
     width: 100%;
-    background: #111;
-    border: 1px solid #333;
-    border-radius: 4px;
-    color: #e0e0e0;
+    background: var(--interior);
+    border: 1px solid var(--control-line);
+    border-radius: 8px;
+    color: var(--primary-text);
     font-family: inherit;
     font-size: 14px;
     padding: 10px 12px;
     outline: none;
     transition: border-color 0.2s;
   }
+  input[type="text"]::placeholder, textarea::placeholder { color: var(--muted-grey); }
+  input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--focus); }
 
-  input[type="text"]:focus, textarea:focus, select:focus {
-    border-color: #3b82f6;
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23AEB3B6' stroke-width='2'%3E%3Cpath d='M3 5l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 34px;
   }
 
-  textarea {
-    resize: vertical;
-    min-height: 140px;
-    line-height: 1.5;
-  }
+  textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
 
   .media-type-badge {
     display: inline-block;
-    font-size: 11px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 2px 8px;
-    border-radius: 3px;
-    background: #1e2a1e;
-    color: #6dca6d;
-    margin-left: 8px;
+    border-radius: 5px;
+    background: var(--charcoal);
+    color: var(--primary-text);
   }
+  .media-type-badge.video { background: var(--charcoal); color: var(--primary-text); }
 
-  .media-type-badge.video {
-    background: #2a1e2a;
-    color: #ca6dca;
-  }
+  .thumb-row { display: flex; align-items: center; gap: 8px; }
+  .thumb-chip { height: 40px; border-radius: 6px; border: 1px solid var(--hairline); }
+  .thumb-note { font-size: 11px; color: var(--muted-grey); }
 
-  .thumb-row {
+  .char-count { font-size: 11px; color: var(--muted-grey); text-align: right; margin-top: 4px; }
+  .char-count.warn { color: var(--warn); }
+  .char-count.over { color: var(--fail); }
+
+  /* Caption generation failures render here rather than into the textarea,
+     where an error string could be mistaken for a caption and posted (FE-6). */
+  .caption-error { font-size: 11px; color: var(--fail); margin-top: 4px; line-height: 1.4; }
+
+  .regen-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  .regen-row input { flex: 1; font-size: 12px; padding: 8px 10px; }
+
+  /* Per-slot result footer: an empty wrapper until a run injects a status line
+     (the same status-item markup the run used to write into the global panel). */
+  .slot-result { margin-top: 2px; }
+  .slot-result:empty { display: none; }
+  .slot-result .status-item { margin-top: 0; }
+
+  /* ============================ Review: condensed summary ============================ */
+
+  .run-summary {
+    margin-top: 22px;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 14px 18px;
     display: flex;
     align-items: center;
+    gap: 26px;
+    flex-wrap: wrap;
+  }
+  .rs-field { display: flex; align-items: baseline; gap: 8px; font-size: 13px; min-width: 0; }
+  .rs-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted-grey); }
+  .rs-value { color: var(--primary-text); font-weight: 600; }
+  .rs-value.rs-idle { color: var(--muted-grey); font-weight: 500; }
+  .rs-sep { flex: 1; }
+  .rs-log {
+    background: var(--midground);
+    border: 1px solid var(--hairline);
+    color: var(--rice-grey);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
-    margin-top: 8px;
   }
+  .rs-log:hover { color: var(--primary-text); border-color: var(--control-line); }
+  .rs-ok   { color: var(--ok); }
+  .rs-warn { color: var(--warn); }
+  .rs-fail { color: var(--fail); }
+  .rs-muted { color: var(--muted-grey); }
 
-  .thumb-chip {
-    height: 44px;
-    border-radius: 4px;
-    border: 1px solid #333;
-  }
+  /* ============================ Action bar ============================ */
 
-  .thumb-note {
-    font-size: 11px;
-    color: #888;
-  }
-
-  .actions {
-    max-width: 900px;
-    margin: 28px auto 0;
-    display: flex;
-    gap: 12px;
-  }
+  .actions { margin-top: 16px; display: flex; gap: 12px; }
 
   button {
-    padding: 12px 24px;
+    padding: 12px 20px;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+    font-family: inherit;
   }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button:active:not(:disabled) { transform: translateY(1px); }
 
-  button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .btn-generate {
-    background: #2563eb;
-    color: #fff;
+  /* Neutral Slate action buttons — chrome, so no colour. */
+  .btn-generate, .btn-schedule, .btn-secondary {
+    background: var(--interior);
+    color: var(--primary-text);
+    border: 1px solid var(--hairline);
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
   }
+  .btn-generate:hover:not(:disabled),
+  .btn-schedule:hover:not(:disabled),
+  .btn-secondary:hover:not(:disabled) { border-color: var(--control-line); background: var(--midground); }
 
-  .btn-generate:hover:not(:disabled) { background: #1d4ed8; }
+  .btn-schedule { flex: 1; }
+  .btn-secondary { flex: 1; }
 
+  /* Post All is the one prominent, genuinely-operational action: a real
+     ready-to-post affordance, so the ok hue is permitted here. */
   .btn-post {
-    background: #16a34a;
-    color: #fff;
+    background: var(--ok);
+    color: #06120B;
     flex: 1;
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
+  .btn-post:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-post:disabled { background: var(--charcoal); color: var(--muted-grey); }
 
-  .btn-post:hover:not(:disabled) { background: #15803d; }
-
-  .btn-schedule {
-    background: #7c3aed;
-    color: #fff;
-    flex: 0 0 auto;
-  }
-
-  .btn-schedule:hover:not(:disabled) { background: #6d28d9; }
+  .btn-small { padding: 8px 14px; font-size: 12px; flex: 0 0 auto; min-height: 36px; }
 
   .schedule-row {
-    max-width: 900px;
-    margin: 8px auto 0;
+    margin-top: 12px;
     display: none;
     align-items: center;
     gap: 10px;
   }
-
   .schedule-row input[type="datetime-local"] {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    color: #e0e0e0;
-    padding: 8px 12px;
-    border-radius: 6px;
+    background: var(--interior);
+    border: 1px solid var(--control-line);
+    color: var(--primary-text);
+    padding: 10px 12px;
+    border-radius: 8px;
     font-size: 13px;
     flex: 1;
+    font-family: inherit;
   }
+  .schedule-row .btn-schedule, .schedule-row .btn-secondary { flex: 0 0 auto; min-height: 40px; }
 
-  .queue-badge {
-    background: #2d1b69;
-    color: #a78bfa;
-    cursor: pointer;
-    user-select: none;
+  .status-panel { margin-top: 16px; }
+  .status-item {
+    padding: 10px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    margin-top: 8px;
+    background: var(--interior);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-text);
   }
+  .status-icon { font-size: 16px; }
+  .status-success .status-icon { color: var(--ok); }
+  .status-error .status-icon { color: var(--fail); }
+  .status-pending .status-icon { color: var(--warn); }
+  .status-skipped .status-icon { color: var(--muted-grey); }
 
-  .queue-badge:hover { filter: brightness(1.3); }
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--hairline);
+    border-top-color: var(--warn);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  .queue-panel {
-    max-width: 900px;
-    margin: 12px auto 0;
-    background: #141414;
-    border: 1px solid #222;
-    border-radius: 6px;
-    padding: 8px 16px;
-    max-height: 320px;
-    overflow-y: auto;
+  .upload-progress {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 4px;
+    background: var(--hairline);
     display: none;
   }
+  .upload-progress .fill { height: 100%; width: 0%; background: var(--rice-grey); transition: width 0.15s; }
 
+  /* ============================ Local Media ============================ */
+
+  .lm-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .lm-totals { text-align: right; }
+  .lm-totals .lm-count { font-size: 15px; font-weight: 700; color: var(--primary-text); }
+  .lm-totals .lm-size { font-size: 12px; color: var(--muted-grey); }
+
+  .lm-clear-card {
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 14px 16px;
+    max-width: 320px;
+  }
+  .lm-clear-note { font-size: 12px; color: var(--muted-grey); margin-top: 8px; line-height: 1.5; }
+  /* Clear media is destructive + subordinate: outlined in the fail hue, not filled. */
+  .btn-clear {
+    background: transparent;
+    color: var(--fail);
+    border: 1px solid var(--fail);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 40px;
+    width: 100%;
+  }
+  .btn-clear:hover:not(:disabled) { background: rgba(197, 107, 107, 0.12); }
+
+  .lm-info-panel {
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 18px;
+    color: var(--muted-grey);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .lm-info-panel strong { color: var(--primary-text); }
+
+  /* ============================ Queue / History tables ============================ */
+
+  .queue-panel {
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 6px 18px;
+    display: none;
+  }
   .queue-item {
-    padding: 8px 0;
-    border-bottom: 1px solid #222;
-    font-size: 12px;
-    color: #aaa;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-size: 13px;
+    color: var(--rice-grey);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
   }
-
   .queue-item:last-child { border-bottom: none; }
-
-  .queue-item-interrupted { color: #f87171; }
-
+  .queue-item-interrupted { color: var(--fail); }
   .queue-item .btn-small { margin-left: 8px; }
-
   .queue-media-heading {
-    padding: 10px 0 4px;
+    padding: 14px 0 6px;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #a78bfa;
-    border-top: 1px solid #222;
+    letter-spacing: 0.6px;
+    color: var(--muted-grey);
+    border-top: 1px solid var(--hairline);
+    margin-top: 6px;
   }
-
-  .queue-item-media { color: #ccc; }
-
-  .queue-media-reason {
-    display: block;
-    font-size: 11px;
-    color: #888;
-    margin-top: 2px;
-  }
+  .queue-item-media { color: var(--primary-text); }
+  .queue-media-reason { display: block; font-size: 11px; color: var(--muted-grey); margin-top: 2px; }
 
   .history-scheduled {
     display: inline-block;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    background: #2d1b69;
-    color: #a78bfa;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--charcoal);
+    color: var(--primary-text);
     margin-left: 6px;
   }
 
-  .status-panel {
-    max-width: 900px;
-    margin: 20px auto 0;
-  }
-
-  .status-item {
-    padding: 10px 0;
-    border-bottom: 1px solid #222;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .status-icon { font-size: 16px; }
-  .status-success .status-icon { color: #4ade80; }
-  .status-error .status-icon { color: #f87171; }
-  .status-pending .status-icon { color: #fbbf24; }
-  .status-skipped .status-icon { color: #9ca3af; }
-
-  .spinner {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border: 2px solid #333;
-    border-top-color: #fbbf24;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  button:active:not(:disabled) { transform: translateY(1px); }
-
-  .btn-secondary {
-    background: #262626;
-    color: #aaa;
-    flex: 0 0 auto;
-  }
-
-  .btn-secondary:hover:not(:disabled) { background: #333; color: #ddd; }
-
-  .btn-small { padding: 6px 14px; font-size: 12px; }
-
-  .upload-progress {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 4px;
-    background: #222;
-    display: none;
-  }
-
-  .upload-progress .fill {
-    height: 100%;
-    width: 0%;
-    background: #2563eb;
-    transition: width 0.15s;
-  }
-
-  .char-count {
-    font-size: 11px;
-    color: #666;
-    text-align: right;
-    margin-top: 4px;
-  }
-
-  .char-count.warn { color: #fbbf24; }
-  .char-count.over { color: #f87171; }
-
-  /* Caption generation failures render here rather than into the textarea,
-     where an error string could be mistaken for a caption and posted (FE-6). */
-  .caption-error {
-    font-size: 11px;
-    color: #f87171;
-    margin-top: 4px;
-    line-height: 1.4;
-  }
-
-  .regen-row {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-    align-items: center;
-  }
-
-  .regen-row input {
-    flex: 1;
-    font-size: 12px;
-    padding: 6px 10px;
-  }
-
-  .media-bar {
-    max-width: 900px;
-    margin: 16px auto 0;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 10px;
-    font-size: 12px;
-    color: #666;
-  }
-
   .history-panel {
-    max-width: 900px;
-    margin: 12px auto 0;
-    background: #141414;
-    border: 1px solid #222;
-    border-radius: 6px;
-    padding: 8px 16px;
-    max-height: 320px;
-    overflow-y: auto;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 6px 18px;
   }
-
-  .history-item {
-    padding: 8px 0;
-    border-bottom: 1px solid #222;
-    font-size: 12px;
-    color: #aaa;
-  }
-
+  .history-item { padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; color: var(--rice-grey); }
   .history-item:last-child { border-bottom: none; }
-
-  .history-time { color: #666; margin-right: 6px; }
-
-  .history-mode {
-    text-transform: uppercase;
-    font-size: 10px;
-    color: #ffb84d;
-    margin-left: 4px;
-  }
-
+  .history-time { color: var(--muted-grey); margin-right: 6px; }
+  .history-item strong { color: var(--primary-text); }
+  .history-mode { text-transform: uppercase; font-size: 10px; color: var(--warn); margin-left: 4px; }
   .history-caption {
-    color: #777;
-    margin-top: 2px;
+    color: var(--muted-grey);
+    margin-top: 3px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .history-empty { padding: 14px 0; font-size: 13px; color: var(--muted-grey); }
 
-  .history-empty { padding: 10px 0; font-size: 12px; color: #666; }
+  /* ============================ Help ============================ */
+
+  .help-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 0 14px;
+    margin-bottom: 20px;
+    max-width: 620px;
+  }
+  .help-search input { border: none; background: transparent; padding: 12px 0; }
+  .help-search input:focus { border: none; }
+  .help-search svg { width: 16px; height: 16px; color: var(--muted-grey); flex: 0 0 auto; }
+
+  .help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .help-card {
+    background: var(--interior);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .help-card h3 { font-size: 15px; color: var(--primary-text); margin-bottom: 4px; }
+  .help-card .help-sub { font-size: 12px; color: var(--muted-grey); margin-bottom: 14px; }
+  .help-card ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .help-card li { font-size: 13px; color: var(--rice-grey); display: flex; gap: 8px; }
+  .help-card li::before { content: "—"; color: var(--muted-grey); }
+  .help-example {
+    background: var(--midground);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--rice-grey);
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+  .help-status-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--rice-grey); }
+  .help-chip {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--hairline);
+    font-weight: 600;
+  }
+  .help-chip.c-ok   { color: var(--ok);   border-color: var(--ok); }
+  .help-chip.c-warn { color: var(--warn); border-color: var(--warn); }
+  .help-chip.c-fail { color: var(--fail); border-color: var(--fail); }
+  .help-chip.c-muted{ color: var(--muted-grey); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  /* ============================ Responsive ============================ */
+
+  @media (max-width: 1080px) {
+    .slots-container { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: static;
+      height: auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 14px;
+    }
+    .brand { padding: 4px 8px; width: 100%; }
+    .nav-group { display: none; }
+    .nav-item { width: auto; min-width: 0; }
+    .nav-item .nav-label { display: none; }
+    .nav-item[aria-current="page"] .nav-label { display: inline; }
+    .sidebar-foot { margin-top: 0; flex-direction: row; }
+    .copyright { display: none; }
+    .view { padding: 18px; }
+    .actions { flex-wrap: wrap; }
+    .actions button { flex: 1 1 140px; }
+    .run-summary { gap: 14px; }
+    .topbar { padding: 12px 16px; flex-wrap: wrap; }
+    .topbar-right { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+    .header-badges { flex-wrap: wrap; justify-content: flex-end; }
+    /* The top-right Local Media shortcut is redundant with the sidebar entry on
+       narrow; drop it (and the decorative initial) so the bar cannot overflow. */
+    .topbar-shortcut { display: none; }
+    .profile-initial { display: none; }
+  }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>RICEPOSTER</h1>
-  <div class="header-badges" id="headerBadges"></div>
+<div class="app">
+  <!-- ===================== Sidebar ===================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <!-- Approved symbol-only RicePoster logo, served as the ratified PNG.
+           Never recreate in SVG/CSS/glyph; pinned by SHA-256 regression test. -->
+      <img src="/static/logo-ratified.png" alt="RicePoster logo">
+      <div class="brand-name">RICEPOSTER<span>SLATE</span></div>
+    </div>
+
+    <nav aria-label="Primary">
+      <div class="nav-group">Workspace</div>
+      <button type="button" class="nav-item" id="nav-localmedia" data-view="localmedia" onclick="navTo('localmedia')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span class="nav-label">Local Media</span>
+      </button>
+      <button type="button" class="nav-item" id="nav-review" data-view="review" aria-current="page" onclick="navTo('review')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        <span class="nav-label">Review</span>
+      </button>
+      <button type="button" class="nav-item" id="nav-queue" data-view="queue" onclick="navTo('queue')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12l16-8-6 16-3-6-7-2z"/></svg>
+        <span class="nav-label">Queue</span>
+      </button>
+      <button type="button" class="nav-item" id="nav-history" data-view="history" onclick="navTo('history')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>
+        <span class="nav-label">History</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <button type="button" class="nav-item" id="nav-help" data-view="help" onclick="navTo('help')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><path d="M12 17h.01"/></svg>
+        <span class="nav-label">Help</span>
+      </button>
+      <div class="copyright">© RicePoster</div>
+    </div>
+  </aside>
+
+  <!-- ===================== Main ===================== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumb" id="breadcrumb"><span class="crumb-muted">RICEPOSTER</span> &rsaquo; Review</div>
+      <div class="topbar-right">
+        <div class="header-badges" id="headerBadges"></div>
+        <button type="button" class="topbar-shortcut" onclick="navTo('localmedia')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span class="ts-label">Local Media</span>
+        </button>
+        <div class="profile-initial" title="RicePoster" aria-hidden="true">RP</div>
+      </div>
+    </header>
+
+    <!-- ---------- Review (default) ---------- -->
+    <section class="view" id="view-review" role="tabpanel" aria-label="Review">
+      <div class="status-bar" id="statusBar" style="display:none"></div>
+
+      <div class="slots-container" id="slotsContainer"></div>
+
+      <!-- Condensed run summary: one horizontal line, Run ID / Status / Next slot /
+           Summary / View Full History. All fields derive from the existing
+           /api/post-progress data; Run ID is a client-side run label. No Started,
+           elapsed, duplicate pacing, or second row. -->
+      <div class="run-summary" id="runSummary" role="status" aria-live="polite">
+        <div class="rs-field"><span class="rs-label">Run ID</span><span class="rs-value rs-idle" id="rsRunId">—</span></div>
+        <div class="rs-field"><span class="rs-label">Status</span><span class="rs-value rs-idle" id="rsStatus">Idle</span></div>
+        <div class="rs-field"><span class="rs-label">Next slot</span><span class="rs-value rs-idle" id="rsNext">—</span></div>
+        <div class="rs-field"><span class="rs-label">Summary</span><span class="rs-value rs-idle" id="rsSummary">—</span></div>
+        <span class="rs-sep"></span>
+        <button type="button" class="rs-log" id="rsViewLog" onclick="navTo('history')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          View Full History
+        </button>
+      </div>
+
+      <div class="actions">
+        <button class="btn-secondary" id="btnPullClipper" onclick="pullFromClipper()">Pull from Clipper</button>
+        <button class="btn-generate" id="btnGenerate" disabled onclick="generateAll()">Generate Captions</button>
+        <button class="btn-post" id="btnPost" disabled onclick="postAll()">Post All</button>
+        <button class="btn-schedule" id="btnSchedule" disabled onclick="toggleScheduleRow()">Schedule</button>
+        <button class="btn-secondary" onclick="resetRun()">New Run</button>
+      </div>
+
+      <div class="schedule-row" id="scheduleRow">
+        <input type="datetime-local" id="scheduleTime" aria-label="Scheduled post time">
+        <button class="btn-schedule" onclick="scheduleAll()">Confirm Schedule</button>
+        <button class="btn-secondary btn-small" onclick="toggleScheduleRow()">Cancel</button>
+      </div>
+
+      <div class="status-panel" id="statusPanel" aria-live="polite"></div>
+    </section>
+
+    <!-- ---------- Local Media ---------- -->
+    <section class="view" id="view-localmedia" role="tabpanel" aria-label="Local Media" hidden>
+      <div class="view-head lm-head">
+        <div>
+          <h1 class="view-title">Local Media</h1>
+          <p class="view-sub">Files in your local media directory used for posting.</p>
+        </div>
+        <div style="display:flex; gap:24px; align-items:flex-start;">
+          <div class="lm-totals"><span id="mediaInfo"></span></div>
+          <div class="lm-clear-card">
+            <button type="button" class="btn-clear" onclick="clearMedia()">Clear media</button>
+            <p class="lm-clear-note">Deletes RicePoster's uploaded copies in <strong>media/</strong>. Your
+              original files are untouched. This cannot be undone.</p>
+          </div>
+        </div>
+      </div>
+      <div class="lm-info-panel">
+        RicePoster keeps a working copy of each uploaded clip in its local <strong>media/</strong> directory
+        until you clear it. The counts above reflect that directory. Use <strong>Clear media</strong> to
+        reclaim space once a run is posted — your source files are never modified.
+      </div>
+    </section>
+
+    <!-- ---------- Queue ---------- -->
+    <section class="view" id="view-queue" role="tabpanel" aria-label="Queue" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Queue</h1>
+        <p class="view-sub">Scheduled and interrupted batches. Honest evidence retained.</p>
+      </div>
+      <div class="queue-panel" id="queuePanel"></div>
+    </section>
+
+    <!-- ---------- History ---------- -->
+    <section class="view" id="view-history" role="tabpanel" aria-label="History" hidden>
+      <div class="view-head">
+        <h1 class="view-title">History</h1>
+        <p class="view-sub">Recent posting runs and outcomes.</p>
+      </div>
+      <div class="history-panel" id="historyPanel" style="display:none"></div>
+    </section>
+
+    <!-- ---------- Help ---------- -->
+    <section class="view" id="view-help" role="tabpanel" aria-label="Help" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Help</h1>
+        <p class="view-sub">Quick guidance for confident, safe posting.</p>
+      </div>
+      <div class="help-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input type="text" placeholder="Search help topics…" aria-label="Search help topics">
+      </div>
+      <div class="help-grid">
+        <div class="help-card">
+          <h3>Before you post</h3>
+          <div class="help-sub">Simple checks that save time and protect your accounts.</div>
+          <ul>
+            <li>Media is relevant, vertical, and high quality.</li>
+            <li>Captions are accurate and on-brand.</li>
+            <li>Each slot uses unique media.</li>
+            <li>Sessions show green for the platforms you intend to post to.</li>
+            <li>Spacing between posts is appropriate.</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>Caption generation</h3>
+          <div class="help-sub">How captions are created.</div>
+          <ul>
+            <li>The AI drafts a caption from the frame it is shown plus your topic.</li>
+            <li>Captions reflect scene details and intent.</li>
+            <li>Choose a style per slot; Regenerate or Undo as needed.</li>
+          </ul>
+          <div class="help-example">From field to future.<br>Built on patience.<br>#RiceLife #FarmToFuture</div>
+        </div>
+        <div class="help-card">
+          <h3>Scheduling &amp; pacing</h3>
+          <div class="help-sub">Pacing protects reach and account health.</div>
+          <ul>
+            <li>Schedule one batch at a time to fire at a chosen local time.</li>
+            <li>Posts within a run are spaced automatically between accounts.</li>
+            <li>A scheduled batch posts unattended — review captions first.</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>Result meanings</h3>
+          <div class="help-sub">What each result status means.</div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="help-status-row"><span class="help-chip c-ok">Confirmed</span> Posted and confirmed on the platform.</div>
+            <div class="help-status-row"><span class="help-chip c-warn">Unconfirmed</span> Submitted but not confirmed — check before reposting.</div>
+            <div class="help-status-row"><span class="help-chip c-fail">Failed</span> Could not post. See the error reason.</div>
+            <div class="help-status-row"><span class="help-chip c-muted">Skipped</span> Not attempted (no caption or no session).</div>
+          </div>
+        </div>
+        <div class="help-card">
+          <h3>Recovery &amp; retained evidence</h3>
+          <div class="help-sub">If something goes wrong, follow these steps.</div>
+          <ul>
+            <li>Check any Unconfirmed result on the platform before reposting.</li>
+            <li>For a Failed result, read the error reason, fix, then retry.</li>
+            <li>Wait the pacing interval before reposting to avoid rate limits.</li>
+            <li>Interrupted batches and their media are retained as honest evidence in Queue.</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>Real-account safety</h3>
+          <div class="help-sub">This tool posts to live Instagram and TikTok accounts.</div>
+          <ul>
+            <li>Post All and Confirm Schedule act on real accounts immediately.</li>
+            <li>Review every caption and the target slot before posting.</li>
+            <li>Retained media and captions are kept locally for verification only.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>
-
-<div class="status-bar" id="statusBar" style="display:none"></div>
-
-<div class="slots-container" id="slotsContainer"></div>
-
-<div class="actions">
-  <button class="btn-secondary" id="btnPullClipper" onclick="pullFromClipper()">Pull from Clipper</button>
-  <button class="btn-generate" id="btnGenerate" disabled onclick="generateAll()">Generate Captions</button>
-  <button class="btn-post" id="btnPost" disabled onclick="postAll()">Post All</button>
-  <button class="btn-schedule" id="btnSchedule" disabled onclick="toggleScheduleRow()">Schedule</button>
-  <button class="btn-secondary" onclick="resetRun()">New Run</button>
-</div>
-
-<div class="schedule-row" id="scheduleRow">
-  <input type="datetime-local" id="scheduleTime">
-  <button class="btn-schedule" onclick="scheduleAll()">Confirm Schedule</button>
-  <button class="btn-secondary btn-small" onclick="toggleScheduleRow()">Cancel</button>
-</div>
-
-<div class="status-panel" id="statusPanel"></div>
-
-<div class="media-bar">
-  <span id="mediaInfo"></span>
-  <button class="btn-secondary btn-small" onclick="clearMedia()">Clear media</button>
-  <button class="btn-secondary btn-small" onclick="toggleHistory()">History</button>
-</div>
-
-<div class="queue-panel" id="queuePanel"></div>
-<div class="history-panel" id="historyPanel" style="display:none"></div>
 
 <script>
 const state = {
@@ -564,6 +992,12 @@ const state = {
   // backend validator share one value (#53). Fallback only until init()
   // resolves; the authoritative value is the backend's MAX_CAPTION_LENGTH.
   captionLimit: 2200,
+  // Slate client-side navigation. Review is the default/primary destination;
+  // this is a view-switching layer only, not auth or account management.
+  currentView: 'review',
+  // Client-side run label shown in the condensed summary. A UI identifier for
+  // the current Post All run — not platform data. Empty renders as an em-dash.
+  runId: '',
 };
 
 function emptySlot() {
@@ -673,7 +1107,7 @@ async function init() {
       renderHeadlessBadge();
     }
 
-    badges.innerHTML += `<span class="badge queue-badge" id="queueBadge" onclick="toggleQueuePanel()" style="display:none"></span>`;
+    badges.innerHTML += `<span class="badge queue-badge" id="queueBadge" role="button" tabindex="0" onclick="navTo('queue')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo('queue')}" style="display:none"></span>`;
     refreshQueue();
 
     // Status bar with session info
@@ -700,6 +1134,7 @@ async function init() {
 
     renderSlots();
     refreshMediaInfo();
+    renderSummary(null);
   } catch (e) {
     // init() builds the whole UI, so a failure here leaves a blank page.
     // A console line is invisible to someone who isn't looking for it, and
@@ -741,6 +1176,12 @@ function styleOptions(slot) {
   ).join('');
 }
 
+// Approved monochrome platform glyphs for the horizontal account trackers.
+// These are platform icons, not the RicePoster logo — the logo alone is the
+// ratified PNG that must never be recreated.
+const IG_ICON = `<svg class="plat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg>`;
+const TT_ICON = `<svg class="plat-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 3c.35 2.1 1.7 3.55 3.8 3.85v2.62c-1.3.08-2.55-.32-3.7-1.02v5.83a5.35 5.35 0 1 1-5.35-5.35c.28 0 .56.02.83.07v2.7a2.66 2.66 0 1 0 1.87 2.54V3z"/></svg>`;
+
 function renderSlots() {
   const container = el('slotsContainer');
   container.innerHTML = '';
@@ -748,30 +1189,46 @@ function renderSlots() {
   for (const account of state.accounts) {
     const slot = account.slot;
     const s = state.slots[slot];
+    const num = state.accounts.indexOf(account) + 1;
 
+    // Horizontal Instagram + TikTok trackers replace the platform-name text in
+    // the slot header. Each is an icon + a colour-and-text status: session
+    // present -> green "Ready", absent -> muted "No session", and when sessions
+    // are not tracked (mock/api mode) a muted em-dash. Text always carries the
+    // meaning so status is never colour-only. sessDots stays the variable name.
     const sess = state.postMode === 'browser' ? state.sessions?.[slot] : null;
-    const sessDots = sess ? `
-        <span class="session-dot"><span class="dot ${sess.instagram ? 'dot-on' : 'dot-off'}"></span>IG</span>
-        <span class="session-dot"><span class="dot ${sess.tiktok ? 'dot-on' : 'dot-off'}"></span>TT</span>` : '';
+    const tracker = (name, ico, ok) => {
+      const known = state.postMode === 'browser' && !!sess;
+      const st = known ? (ok ? 'st-ok' : 'st-muted') : 'st-muted';
+      const label = known ? (ok ? 'Ready' : 'No session') : '—';
+      return `<span class="tracker" role="img" aria-label="${escAttr(name + ': ' + label)}">`
+           + `${ico}<span class="status-dot ${st}"></span><span class="st-text">${esc(label)}</span></span>`;
+    };
+    const sessDots = `<span class="slot-trackers">`
+      + `${tracker('Instagram', IG_ICON, sess?.instagram)}${tracker('TikTok', TT_ICON, sess?.tiktok)}</span>`;
 
     const card = document.createElement('div');
     card.className = 'slot-card';
     card.innerHTML = `
-      <div class="slot-label">
-        ${esc(account.name)}${sessDots}
+      <div class="slot-head">
+        <span class="slot-num" title="${escAttr(account.name)}" aria-label="${escAttr('Slot ' + num + ': ' + account.name)}">${num}</span>
+        ${sessDots}
         <span id="mediaTypeBadge_${slot}" class="media-type-badge" style="display:none"></span>
+        <button type="button" class="slot-menu" aria-label="${escAttr('Slot ' + num + ' options')}" title="Slot options">&#8943;</button>
       </div>
 
-      <div>
+      <div class="slot-media">
         <div class="drop-zone" id="dropZone_${slot}">
           <div class="drop-zone-text" id="dropText_${slot}">Drop media here<br>or click to browse</div>
-          <input type="file" accept="image/*,video/*" onchange="handleFile('${slot}', this.files[0])">
+          <input type="file" accept="image/*,video/*" onchange="handleFile('${slot}', this.files[0])" aria-label="${escAttr('Upload media for slot ' + num)}">
           <div class="upload-progress" id="uploadProg_${slot}"><div class="fill" id="uploadFill_${slot}"></div></div>
         </div>
-        <div class="thumb-row" id="thumbRow_${slot}" style="display:none">
-          <img class="thumb-chip" id="thumbChip_${slot}" alt="caption frame">
-          <span class="thumb-note">frame the caption AI sees</span>
-        </div>
+      </div>
+
+      <div class="thumb-row" id="thumbRow_${slot}" style="display:none">
+        <span class="slot-section-label">Caption frame</span>
+        <img class="thumb-chip" id="thumbChip_${slot}" alt="caption frame">
+        <span class="thumb-note">the frame the caption AI sees</span>
       </div>
 
       <div class="slot-fields">
@@ -782,23 +1239,25 @@ function renderSlots() {
         </div>
         <div>
           <div class="field-label">Caption style</div>
-          <select onchange="state.slots['${slot}'].style = this.value">
+          <select aria-label="${escAttr('Caption style for slot ' + num)}" onchange="state.slots['${slot}'].style = this.value">
             ${styleOptions(slot)}
           </select>
         </div>
         <div>
           <div class="field-label">Caption</div>
-          <textarea id="caption_${slot}" placeholder="Click Generate to create a caption..."
+          <textarea id="caption_${slot}" aria-label="${escAttr('Caption for slot ' + num)}" placeholder="Click Generate to create a caption..."
                     oninput="state.slots['${slot}'].caption = this.value; autoGrow(this); updateCharCount('${slot}'); updateButtons()"></textarea>
           <div class="char-count" id="charCount_${slot}">0 / 2200</div>
           <div class="caption-error" id="captionError_${slot}" style="display:none"></div>
           <div class="regen-row">
-            <input type="text" id="feedback_${slot}" placeholder="Optional tweak, e.g. 'shorter, punchier'">
+            <input type="text" id="feedback_${slot}" aria-label="${escAttr('Regeneration feedback for slot ' + num)}" placeholder="Optional tweak, e.g. 'shorter, punchier'">
             <button class="btn-secondary btn-small" id="btnRegen_${slot}" onclick="regenerateCaption('${slot}')">Regenerate</button>
             <button class="btn-secondary btn-small" id="btnUndo_${slot}" style="display:none" onclick="undoCaption('${slot}')">Undo</button>
           </div>
         </div>
       </div>
+
+      <div class="slot-result" id="slotResult_${slot}" aria-live="polite"></div>
     `;
     container.appendChild(card);
 
@@ -1271,7 +1730,9 @@ function resetRun() {
     // the chosen caption style is deliberately kept
   }
   el('statusPanel').innerHTML = '';
+  state.runId = '';
   renderSlots();
+  renderSummary(null);
   updateButtons();
 }
 
@@ -1375,6 +1836,8 @@ function stopProgressPolling() {
 }
 
 function renderProgress(p) {
+  // Keep the condensed summary in step with each poll, then update per-slot rows.
+  renderSummary(p);
   if (!p.active) return;
   const shortPlat = plat => plat === 'instagram' ? 'IG' : 'TT';
   const mark = st => st === 'ok' ? '✓' : st === 'unconfirmed' ? '⚠ unconfirmed'
@@ -1412,8 +1875,22 @@ async function postAll() {
   btn.disabled = true;
   btn.textContent = 'Posting...';
 
+  // Client-side run label for the condensed summary — a UI identifier for this
+  // run, never platform data. Cleared to an em-dash by New Run.
+  state.runId = 'RUN-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-'
+    + Math.random().toString(36).slice(2, 6).toUpperCase();
+
   const statusPanel = el('statusPanel');
   statusPanel.innerHTML = '';
+
+  // Per-slot results render in each card's footer. Clear every footer first,
+  // then show a pending or skipped line only for the slots this run touches.
+  // Slots not in the run get no status_ element, so renderProgress skips them
+  // exactly as it did when these rows lived in the global status panel.
+  for (const slot of Object.keys(state.slots)) {
+    const c = slotElOpt('slotResult', slot);
+    if (c) c.innerHTML = '';
+  }
 
   // Show pending status for each slot
   for (const [slot, s] of Object.entries(state.slots)) {
@@ -1423,7 +1900,8 @@ async function postAll() {
     // (#24, maintainer decision 2026-08-03).
     if (s.filename && !s.caption.trim()) {
       const account = state.accounts.find(a => a.slot === slot);
-      statusPanel.innerHTML += `
+      const c = slotElOpt('slotResult', slot);
+      if (c) c.innerHTML = `
         <div class="status-item status-skipped" id="status_${slot}">
           <span class="status-icon">⊘</span>
           <span>${esc(account?.name || slot)} — skipped: no caption</span>
@@ -1433,13 +1911,16 @@ async function postAll() {
     }
     if (!s.filename || !s.caption.trim()) continue;
     const account = state.accounts.find(a => a.slot === slot);
-    statusPanel.innerHTML += `
+    const c = slotElOpt('slotResult', slot);
+    if (c) c.innerHTML = `
       <div class="status-item status-pending" id="status_${slot}">
         <span class="spinner"></span>
         <span>${esc(account?.name || slot)} — posting...</span>
       </div>
     `;
   }
+
+  renderSummary({ active: true, current: null, waiting: null, events: [] });
 
   const payload = buildSlotsPayload();
 
@@ -1484,6 +1965,19 @@ async function postAll() {
         `;
       }
     }
+
+    // Final condensed summary from the run's results (per-platform outcomes).
+    renderSummary({
+      active: false, current: null, waiting: null,
+      events: results.flatMap(r => {
+        if (r.errors && r.errors.length) return [{ status: 'error' }];
+        const evs = [];
+        for (const id of [r.ig_post_id, r.tt_post_id]) {
+          if (id) evs.push({ status: isUnconfirmed(id) ? 'unconfirmed' : 'ok' });
+        }
+        return evs;
+      }),
+    });
   } catch (e) {
     stopProgressPolling();
     statusPanel.innerHTML = `
@@ -1716,6 +2210,119 @@ async function cancelQueueBatch(batchId) {
   } catch (e) {
     alert(`Failed: ${e.message}`);
   }
+}
+
+// --- Slate client-side navigation -------------------------------------------
+// A view-switching layer only — not authentication or account management.
+// Review is the default/primary destination. The Queue and History views drive
+// the existing bounded-polling and history-load paths through their original
+// toggle functions, so those contracts (notably #7) hold unchanged.
+const VIEW_TITLES = {
+  localmedia: 'Local Media',
+  review: 'Review',
+  queue: 'Queue',
+  history: 'History',
+  help: 'Help',
+};
+
+function navTo(view) {
+  if (!VIEW_TITLES[view]) return;
+  const leavingQueue = state.currentView === 'queue' && view !== 'queue';
+  const leavingHistory = state.currentView === 'history' && view !== 'history';
+  state.currentView = view;
+
+  for (const name of Object.keys(VIEW_TITLES)) {
+    const sec = elOpt(`view-${name}`);
+    if (sec) sec.hidden = name !== view;
+    const nav = elOpt(`nav-${name}`);
+    if (nav) {
+      if (name === view) nav.setAttribute('aria-current', 'page');
+      else nav.removeAttribute('aria-current');
+    }
+  }
+
+  const bc = elOpt('breadcrumb');
+  if (bc) bc.innerHTML = `<span class="crumb-muted">RICEPOSTER</span> &rsaquo; ${esc(VIEW_TITLES[view])}`;
+
+  // Queue view reuses the existing panel toggle, preserving bounded polling (#7):
+  // opening starts the timer with an eager refresh, leaving stops it.
+  const qp = elOpt('queuePanel');
+  if (qp) {
+    const open = qp.style.display === 'block';
+    if (view === 'queue' && !open) toggleQueuePanel();
+    else if (leavingQueue && open) toggleQueuePanel();
+  }
+  // History view loads through the existing toggle (fetch on open, hide on leave).
+  const hp = elOpt('historyPanel');
+  if (hp) {
+    const shown = hp.style.display !== 'none';
+    if (view === 'history' && !shown) toggleHistory();
+    else if (leavingHistory && shown) toggleHistory();
+  }
+
+  window.scrollTo(0, 0);
+}
+
+// --- Condensed run summary --------------------------------------------------
+// Every field derives from the existing /api/post-progress data; Run ID is the
+// client-side run label. No Started, elapsed, duplicate pacing, or second row.
+// Colour is supplemental — each value also carries text.
+function setRsField(node, text, idle, colorClass) {
+  if (!node) return;
+  node.textContent = text;
+  node.className = 'rs-value' + (idle ? ' rs-idle' : '') + (colorClass ? ' ' + colorClass : '');
+}
+
+function summaryHtml(events) {
+  let ok = 0, warn = 0, fail = 0, skip = 0;
+  for (const e of events || []) {
+    if (e.status === 'ok') ok++;
+    else if (e.status === 'unconfirmed') warn++;
+    else if (e.status === 'error') fail++;
+    else if (e.status === 'skipped') skip++;
+  }
+  const parts = [];
+  if (ok) parts.push(`<span class="rs-ok">${ok} confirmed</span>`);
+  if (warn) parts.push(`<span class="rs-warn">${warn} unconfirmed</span>`);
+  if (fail) parts.push(`<span class="rs-fail">${fail} failed</span>`);
+  if (skip) parts.push(`<span class="rs-muted">${skip} skipped</span>`);
+  return parts.length ? parts.join(' · ') : '<span class="rs-muted">No results yet</span>';
+}
+
+function renderSummary(p) {
+  const runIdEl = elOpt('rsRunId');
+  if (!runIdEl) return; // the summary only exists on the Review view
+  const statusEl = elOpt('rsStatus');
+  const nextEl = elOpt('rsNext');
+  const sumEl = elOpt('rsSummary');
+
+  const rid = state.runId || '';
+  setRsField(runIdEl, rid || '—', !rid);
+
+  const hasRun = p && (p.active || (p.events && p.events.length));
+  if (!hasRun) {
+    setRsField(statusEl, 'Idle', true);
+    setRsField(nextEl, '—', true);
+    if (sumEl) { sumEl.innerHTML = '—'; sumEl.className = 'rs-value rs-idle'; }
+    return;
+  }
+
+  let status;
+  if (p.current) status = `Posting ${p.current.slot} · ${p.current.platform === 'instagram' ? 'Instagram' : 'TikTok'}`;
+  else if (p.waiting) status = 'Pacing between accounts';
+  else if (p.active) status = 'Posting…';
+  else status = 'Complete';
+  setRsField(statusEl, status, false, p.active ? 'rs-warn' : 'rs-ok');
+
+  if (p.waiting) {
+    const s = p.waiting.remaining || 0;
+    const m = Math.floor(s / 60), sec = s % 60;
+    setRsField(nextEl, `In ${m > 0 ? m + 'm ' : ''}${String(sec).padStart(2, '0')}s`, false, 'rs-warn');
+  } else {
+    setRsField(nextEl, '—', true);
+  }
+
+  if (sumEl) { sumEl.innerHTML = summaryHtml(p.events); sumEl.className = 'rs-value'; }
 }
 
 init();
