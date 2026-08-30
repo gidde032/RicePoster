@@ -1,6 +1,6 @@
 # RicePoster Roadmap
 
-Updated 2026-08-12. GitHub Issues are the source of truth for open work; this
+Updated 2026-08-27. GitHub Issues are the source of truth for open work; this
 document records direction, priority horizons, and boundaries without
 duplicating issue bodies.
 
@@ -26,6 +26,17 @@ verified, and the `main` ruleset is enforced
 
 [#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
 remains and needs an approved live TikTok run before its PR leaves draft.
+
+### Approved discovery — Slate sibling interface
+
+RicePoster's next visual-design discovery will adapt RiceClipper's approved
+Slate theme into a matching sibling interface while preserving RicePoster's
+daily-driver workflow and every existing control. Discovery must compare at
+least two materially different treatments of each representative UI state and
+several symbol-only RicePoster logo directions before implementation is
+ratified. Neutral Slate chrome is shared; green, amber, and red remain reserved
+for real operational status. Detailed scope and acceptance criteria belong in
+the owning GitHub Issue once a mockup direction is selected.
 
 ## Shipped milestones
 

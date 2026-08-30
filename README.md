@@ -89,7 +89,7 @@ save it as `sessions/tiktok/{SLOT}_cookies.json`. Exported cookies last roughly
 
 ```bash
 ./run.sh
-# → http://127.0.0.1:8000
+# → http://127.0.0.1:1738
 ```
 
 The server binds localhost only, on purpose: the API has no authentication and
@@ -209,12 +209,10 @@ commands** in Installation — the config file alone does nothing:
 
 GitHub Actions runs the full suite and 43% coverage floor on every pull request
 to `main` and every push to `main`. The workflow has read-only repository
-permission and receives no project secrets. The `main` ruleset names this
-workflow's `Python 3.12 tests and coverage` result as its required check. On the
-repository's current private GitHub Free plan, GitHub stores but does not
-enforce that ruleset; the check still runs and reports its result. Local
-`--no-verify` can bypass the hooks, but it cannot bypass the check once ruleset
-enforcement is available.
+permission and receives no project secrets. The enforced `main` ruleset names
+this workflow's `Python 3.12 tests and coverage` result as its required check.
+Local `--no-verify` can bypass the hooks, but it cannot bypass the required
+GitHub check.
 
 A fresh clone currently reports two intentional skips: it cannot verify that a
 local pre-push hook is installed, and it cannot cross-check the gitignored
