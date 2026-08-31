@@ -7,6 +7,7 @@ import os
 import shutil
 import mimetypes
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -15,13 +16,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from backend.config import (
-    get_accounts, env_bool, FRONTEND_DIR, HISTORY_FILE, MEDIA_DIR, MOCK_MODE,
-    POST_MODE, HEADLESS, SLOT_IDS, check_startup_config,
+    get_accounts, env_bool, FRONTEND_DIR, HISTORY_FILE, MEDIA_DIR, QUEUE_MEDIA_DIR,
+    MOCK_MODE, POST_MODE, HEADLESS, SLOT_IDS, check_startup_config,
 )
 from backend.models import (
-    CaptionRequest, PostRequest, PostResult, RescheduleRequest, ScheduleRequest,
-    MAX_CAPTION_LENGTH,
+    AccountStateRequest, CaptionRequest, PostRequest, PostResult,
+    RescheduleRequest, ScheduleRequest, MAX_CAPTION_LENGTH,
 )
+from backend.account_state import (
+    AccountState, AccountStateError, AccountStateStore, discover_accounts,
+)
+from backend.device_identity import DISPLAYS
+from backend.outcomes import aggregate_stats, classify_history_row
 from backend.captions import generate_caption, load_styles, DEFAULT_STYLE
 from backend.poster import post_all as post_all_api
 from backend.poster_browser import post_all as post_all_browser
@@ -145,26 +151,80 @@ async def serve_ui():
 
 @app.get("/api/accounts")
 async def list_accounts():
-    """Return account slot names for the UI."""
-    accounts = get_accounts()
-    # Check session status if in browser mode
-    session_status = {}
-    if POST_MODE == "browser":
-        from backend.session_manager import session_exists
-        for a in accounts:
-            session_status[a.slot] = {
-                "instagram": session_exists("instagram", a.slot),
-                "tiktok": session_exists("tiktok", a.slot),
-            }
+    """Return discovered accounts and conservative local roster state."""
+    discovered, state, state_error, store = _account_context()
+    active = set(state.active_account_ids)
+    order = {account_id: i for i, account_id in enumerate(state.active_account_ids)}
+    queue_targets: set[str] = set()
+    try:
+        from backend.queue import SNAPSHOT_RETAINED, classify_snapshots, load_queue
+        for batch in load_queue():
+            queue_targets.update(slot.account_id or slot.slot for slot in batch.slots)
+        retained_batch_ids = {
+            snapshot.batch_id for snapshot in classify_snapshots(
+                history_file=HISTORY_FILE, queue_media_dir=QUEUE_MEDIA_DIR,
+            ) if snapshot.classification == SNAPSHOT_RETAINED
+        }
+        if retained_batch_ids and HISTORY_FILE.is_file():
+            for line in HISTORY_FILE.read_text(errors="replace").splitlines():
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(row, dict) and row.get("batch_id") in retained_batch_ids:
+                    account_id = row.get("account_id") or row.get("slot")
+                    if isinstance(account_id, str):
+                        queue_targets.add(account_id)
+    except Exception:
+        pass
+
+    available = []
+    # Saved-session availability is local account metadata and remains useful
+    # in mock/API mode; only the Review posting trackers are mode-dependent.
+    from backend.session_manager import session_exists
+    for account in discovered:
+        sessions = {
+            "instagram": session_exists("instagram", account.account_id),
+            "tiktok": session_exists("tiktok", account.account_id),
+        }
+        available.append({
+            "slot": account.account_id,
+            "account_id": account.account_id,
+            "name": account.display_name,
+            "sessions": sessions,
+            "active": account.account_id in active,
+            "order": order.get(account.account_id),
+            "caption_default": state.caption_defaults.get(account.account_id, DEFAULT_STYLE),
+            "device_profile": state.device_profiles.get(account.account_id),
+            "instagram_device_required": account.account_id in store.instagram_ids,
+            "queued_target": account.account_id in queue_targets,
+        })
+    active_accounts = sorted(
+        (a for a in available if a["active"]), key=lambda a: a["order"]
+    )
+    session_status = (
+        {a["slot"]: a["sessions"] for a in active_accounts}
+        if POST_MODE == "browser" else {}
+    )
 
     return {
         "post_mode": POST_MODE,
         "mock_mode": MOCK_MODE,
         "headless": HEADLESS,
         "accounts": [
-            {"slot": a.slot, "name": a.display_name}
-            for a in accounts
+            {"slot": a["slot"], "account_id": a["account_id"], "name": a["name"]}
+            for a in active_accounts
         ],
+        "available_accounts": available,
+        "account_state": {
+            "schema_version": state.schema_version,
+            "active_account_ids": state.active_account_ids,
+            "rosters": state.rosters,
+            "caption_defaults": state.caption_defaults,
+            "device_profiles": state.device_profiles,
+        },
+        "account_state_error": state_error,
+        "device_profile_capacity": store.capacity,
         "sessions": session_status,
         "caption_styles": [
             {"name": s.name, "display_name": s.display_name}
@@ -177,13 +237,121 @@ async def list_accounts():
     }
 
 
+def _account_context():
+    """Discover accounts using redirectable platform roots used by tests."""
+    from backend import config, instagram_browser, tiktok_browser
+
+    legacy = get_accounts()
+    names = {account.slot: account.display_name for account in legacy}
+    discovered = discover_accounts(
+        instagram_browser.SESSIONS_DIR,
+        tiktok_browser.SESSIONS_DIR,
+        list(SLOT_IDS),
+        names,
+    )
+    known_ids = [account.account_id for account in discovered]
+    instagram_ids = {
+        account_id
+        for account_id in known_ids
+        if (instagram_browser.SESSIONS_DIR / account_id).is_dir()
+        and not (instagram_browser.SESSIONS_DIR / account_id).is_symlink()
+    }
+    state_path = config.ACCOUNT_STATE_FILE
+    store = AccountStateStore(
+        state_path,
+        known_ids,
+        set(load_styles()),
+        len(DISPLAYS),
+        instagram_ids=instagram_ids,
+        compatibility_ids=list(SLOT_IDS),
+    )
+    try:
+        state = store.load()
+        profiles_before = dict(state.device_profiles)
+        store.assign_active_profiles(state)
+        if not state_path.exists() or profiles_before != state.device_profiles:
+            store.save(state)
+        return discovered, state, None, store
+    except AccountStateError as exc:
+        # A corrupt file never guesses a target roster.  Accounts remain
+        # visible for repair, while Review is empty and live actions disable.
+        return discovered, AccountState(), str(exc), store
+
+
+@app.put("/api/accounts/state")
+async def update_account_state(request: AccountStateRequest):
+    discovered, current, state_error, store = _account_context()
+    # A valid complete replacement is the explicit recovery path for corrupt
+    # state; stable assignments survive whenever the old file was readable.
+    profiles = current.device_profiles if not state_error else {}
+    state = AccountState(
+        active_account_ids=request.active_account_ids,
+        rosters=request.rosters,
+        caption_defaults=request.caption_defaults,
+        device_profiles=dict(profiles),
+    )
+    try:
+        store.save(state)
+    except AccountStateError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"status": "saved", "account_state": state.__dict__}
+
+
+def _known_account_ids() -> list[str]:
+    return [account.account_id for account in _account_context()[0]]
+
+
+def _validate_active_targets(requested_ids: list[str]) -> None:
+    discovered, state, state_error, store = _account_context()
+    if state_error:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Local account state is invalid; repair it before posting or scheduling: {state_error}",
+        )
+    known = {account.account_id for account in discovered}
+    unknown = [account_id for account_id in requested_ids if account_id not in known]
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown slot/account target(s): {', '.join(unknown)}.",
+        )
+    inactive = [account_id for account_id in requested_ids if account_id not in state.active_account_ids]
+    if inactive:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Inactive account target(s): {', '.join(inactive)}. Activate them in Accounts first.",
+        )
+    if POST_MODE == "api":
+        api_ids = set(SLOT_IDS)
+        unsupported = [account_id for account_id in requested_ids if account_id not in api_ids]
+        if unsupported:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Official-API mode requires credentials-backed ACCOUNT_SLOTS; "
+                    f"folder-only target(s) are unsupported: {', '.join(unsupported)}."
+                ),
+            )
+    instagram_targets = [
+        account_id for account_id in requested_ids
+        if account_id in store.instagram_ids
+    ]
+    assignments = [state.device_profiles.get(account_id) for account_id in instagram_targets]
+    if any(profile is None for profile in assignments) or len(assignments) != len(set(assignments)):
+        raise HTTPException(
+            status_code=409,
+            detail="Account targets do not have distinct stable Instagram device assignments.",
+        )
+
+
 @app.post("/api/upload/{slot}")
 async def upload_media(slot: str, file: UploadFile = File(...)):
     """Upload a media file for a given account slot. Returns filename and detected type."""
-    if slot not in SLOT_IDS:
+    known_ids = _known_account_ids()
+    if slot not in known_ids:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid slot '{slot}'. Configured slots: {', '.join(SLOT_IDS)}.",
+            detail=f"Invalid slot '{slot}'. Configured slots/accounts: {', '.join(known_ids)}.",
         )
 
     # Save to media dir with slot prefix; basename only so path segments
@@ -291,13 +459,34 @@ async def pull_from_clipper():
     on a real frame just like manual. This endpoint NEVER posts and NEVER
     schedules (CLAUDE.md safety rule) — it only stages files.
     """
+    _discovered, account_state, state_error, _store = _account_context()
+    if state_error:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Local account state is invalid; repair it before pulling: {state_error}",
+        )
     try:
-        result = handoff_pickup.ingest_oldest()
+        result = handoff_pickup.ingest_oldest(account_state.active_account_ids)
     except handoff_pickup.NoBatchAvailable:
         return {"pulled": False, "reason": "No handoff batches to pull."}
     except handoff_pickup.HandoffPickupError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"pulled": True, **result}
+
+
+@app.post("/api/pull-from-clipper/{batch_id}/ack")
+async def acknowledge_clipper_pull(batch_id: str):
+    """Acknowledge browser application while retaining the archived source."""
+    _discovered, account_state, state_error, _store = _account_context()
+    if state_error:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Local account state is invalid; receipt remains staged: {state_error}",
+        )
+    try:
+        return handoff_pickup.acknowledge(batch_id, account_state.active_account_ids)
+    except handoff_pickup.HandoffPickupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/media/{filename}")
@@ -417,9 +606,11 @@ async def post_progress():
 def _append_history(slots: list[dict], results, headless_used: bool):
     """Record one line per slot-result. History must never break a run."""
     try:
+        run_id = uuid.uuid4().hex
         with open(HISTORY_FILE, "a") as f:
             for r in results:
                 slot_info = next((s for s in slots if s["slot"] == r.slot), {})
+                media_path = Path(slot_info["media_path"]) if slot_info else None
                 f.write(json.dumps({
                     # UTC, timezone-aware, to match scheduler.py's rows — the
                     # two writers used different clocks and the UI rendered
@@ -430,7 +621,13 @@ def _append_history(slots: list[dict], results, headless_used: bool):
                     "ts": datetime.datetime.now(
                         datetime.timezone.utc).isoformat(timespec="seconds"),
                     "slot": r.slot,
+                    "account_id": r.slot,
+                    "run_id": run_id,
                     "file": Path(slot_info["media_path"]).name if slot_info else "",
+                    "media_bytes": (
+                        media_path.stat().st_size
+                        if media_path and media_path.is_file() else 0
+                    ),
                     "caption": slot_info.get("caption", ""),
                     "post_mode": POST_MODE,
                     "headless": headless_used,
@@ -450,7 +647,9 @@ async def get_history(limit: int = 50):
     entries = []
     for line in HISTORY_FILE.read_text().strip().splitlines()[-limit:]:
         try:
-            entries.append(json.loads(line))
+            row = json.loads(line)
+            row["outcomes"] = classify_history_row(row)
+            entries.append(row)
         except Exception:
             continue
     entries.reverse()
@@ -484,13 +683,9 @@ async def _run_post(request: PostRequest, effective_headless: bool) -> list[Post
             status_code=400,
             detail="Duplicate slot in post request — each slot may appear at most once.",
         )
+    _validate_active_targets(requested_ids)
     slots = []
     for req_slot in request.slots:
-        if req_slot.slot not in SLOT_IDS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown slot '{req_slot.slot}'. Configured slots: {', '.join(SLOT_IDS)}.",
-            )
         if req_slot.filename and req_slot.caption:
             media_path = (MEDIA_DIR / req_slot.filename).resolve()
             if not media_path.is_relative_to(MEDIA_DIR.resolve()):
@@ -544,14 +739,10 @@ async def schedule_batch(request: ScheduleRequest):
     requested_ids = [s.slot for s in request.slots]
     if len(requested_ids) != len(set(requested_ids)):
         raise HTTPException(status_code=400, detail="Duplicate slot in schedule request.")
+    _validate_active_targets(requested_ids)
 
     slot_batches = []
     for req_slot in request.slots:
-        if req_slot.slot not in SLOT_IDS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown slot '{req_slot.slot}'. Configured slots: {', '.join(SLOT_IDS)}.",
-            )
         if not req_slot.filename or not req_slot.caption:
             raise HTTPException(
                 status_code=400,
@@ -572,6 +763,7 @@ async def schedule_batch(request: ScheduleRequest):
             slot=req_slot.slot,
             media_path=req_slot.filename,
             caption=req_slot.caption,
+            account_id=req_slot.slot,
         ))
 
     effective_headless = HEADLESS if request.headless is None else request.headless
@@ -630,6 +822,12 @@ async def list_queue():
     """List pending/running/interrupted batches."""
     batches = load_queue()
     return {"batches": [b.to_dict() for b in batches]}
+
+
+@app.get("/api/stats")
+async def get_stats():
+    """Read-only lifetime aggregates from local history and current storage."""
+    return aggregate_stats(HISTORY_FILE, MEDIA_DIR, QUEUE_MEDIA_DIR)
 
 
 @app.delete("/api/queue/{batch_id}")

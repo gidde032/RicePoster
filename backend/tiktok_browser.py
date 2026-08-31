@@ -73,15 +73,68 @@ async def login_modal_present(page) -> bool:
     return False
 
 
+def _is_usable_cookie_file(path: Path) -> bool:
+    try:
+        if (
+            path.is_symlink()
+            or path.parent.is_symlink()
+            or SESSIONS_DIR.is_symlink()
+            or not path.is_file()
+            or path.stat().st_size <= 10
+        ):
+            return False
+        cookies = json.loads(path.read_text())
+        return (
+            isinstance(cookies, list)
+            and bool(cookies)
+            and all(
+                isinstance(cookie, dict)
+                and isinstance(cookie.get("name"), str)
+                and bool(cookie["name"])
+                and isinstance(cookie.get("value"), str)
+                for cookie in cookies
+            )
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+
+
 def _cookies_file(account_key: str) -> Path:
-    """Path to the exported cookie JSON file for an account."""
-    return SESSIONS_DIR / f"{account_key}_cookies.json"
+    """Preferred cookie path, with the legacy flat file handled by readers."""
+    preferred = SESSIONS_DIR / account_key / "cookies.json"
+    legacy = SESSIONS_DIR / f"{account_key}_cookies.json"
+    # A half-written or empty preferred file must not mask a usable legacy
+    # export. This selection rule is shared by the availability probe and the
+    # loader so they cannot disagree about which saved session is usable.
+    for candidate in (preferred, legacy):
+        if _is_usable_cookie_file(candidate):
+            return candidate
+    return preferred if preferred.exists() else legacy
 
 
 def has_cookie_session(account_key: str) -> bool:
     """Check if exported cookies exist for this account."""
-    cf = _cookies_file(account_key)
-    return cf.exists() and cf.stat().st_size > 10
+    path = _cookies_file(account_key)
+    return _is_usable_cookie_file(path)
+
+
+def has_profile_session(account_key: str) -> bool:
+    """A persistent profile needs state beyond the optional cookie export.
+
+    The preferred cookie file lives inside the same account directory. A bad
+    or empty `cookies.json` must not make that directory look like an
+    authenticated persistent profile merely because the file itself exists.
+    """
+    session_dir = SESSIONS_DIR / account_key
+    if not session_dir.is_dir() or session_dir.is_symlink():
+        return False
+    try:
+        return any(
+            entry.name not in {"cookies.json", ".DS_Store"}
+            for entry in session_dir.iterdir()
+        )
+    except OSError:
+        return False
 
 
 def _normalize_cookies(raw_cookies: list) -> list:
@@ -199,6 +252,7 @@ async def _write_back_cookies(context, account_key: str, from_cookie_session: bo
 
     cookie_file = _cookies_file(account_key)
     try:
+        cookie_file.parent.mkdir(parents=True, exist_ok=True)
         # Single-depth backup; overwrite any existing .bak. Only touched when
         # the write itself is about to run, never on a failed write-back.
         if cookie_file.exists():
@@ -227,6 +281,9 @@ async def _write_back_cookies(context, account_key: str, from_cookie_session: bo
 
 async def _get_context_from_cookies(playwright, account_key: str, headless: bool = True):
     """Create a browser context and load exported cookies. No persistent profile needed."""
+    cookie_file = _cookies_file(account_key)
+    if not _is_usable_cookie_file(cookie_file):
+        raise ValueError(f"No safe usable TikTok cookie session exists for {account_key!r}.")
     browser = await playwright.chromium.launch(
         channel="chrome",
         headless=headless,
@@ -251,7 +308,7 @@ async def _get_context_from_cookies(playwright, account_key: str, headless: bool
 
     # Load cookies from exported JSON. Cookie-Editor exports a slightly
     # different format than Playwright expects — normalize the objects.
-    with open(_cookies_file(account_key)) as f:
+    with open(cookie_file) as f:
         raw_cookies = json.load(f)
 
     cookies = _normalize_cookies(raw_cookies)

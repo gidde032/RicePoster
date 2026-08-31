@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from backend.config import get_accounts
+from backend.config import MOCK_MODE, get_accounts
 from backend.models import PostResult
 from backend import instagram, tiktok
 
@@ -22,15 +22,20 @@ async def post_slot(
 ) -> PostResult:
     """Post one media+caption to both IG and TikTok for a given account slot."""
     accounts = {a.slot: a for a in get_accounts()}
-    account = accounts[slot]
+    account = accounts.get(slot)
+    if account is None and not MOCK_MODE:
+        raise ValueError(
+            f"Official-API posting has no credentials-backed ACCOUNT_SLOTS entry for {slot!r}."
+        )
     result = PostResult(slot=slot)
-    ig_token = account.ig_token.get_secret_value()
-    tt_token = account.tt_token.get_secret_value()
+    ig_user_id = account.ig_user_id if account else ""
+    ig_token = account.ig_token.get_secret_value() if account else ""
+    tt_token = account.tt_token.get_secret_value() if account else ""
 
     # Instagram post
     try:
         result.ig_post_id = await instagram.post_media(
-            ig_user_id=account.ig_user_id,
+            ig_user_id=ig_user_id,
             token=ig_token,
             media_path=media_path,
             caption=caption,

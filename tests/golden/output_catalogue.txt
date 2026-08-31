@@ -1,5 +1,5 @@
 captions.py :: load_styles :: f"[captions] Skipping invalid style file {path.name}: {e}"
-handoff_pickup.py :: ingest_oldest :: "[handoff] pulled batch %s into %d slot(s)", batch_id, len(slots)
+handoff_pickup.py :: ingest_oldest :: "[handoff] staged and archived batch %s into %d account(s)", batch_id, len(slots)
 instagram_browser.py :: login :: f"\n[Instagram] Log in to account '{account_key}' in the browser window."
 instagram_browser.py :: login :: "Once logged in and you see your feed, press Enter here to save the session"
 instagram_browser.py :: login :: "(or type 'abort' + Enter to discard if the login didn't work)..."
@@ -35,6 +35,7 @@ queue.py :: reconcile_queue_media :: f"[queue] reconciliation: keeping snapshot 
 queue.py :: reconcile_queue_media :: f"[queue] reconciliation: {summary} snapshot(s) kept; review " f"them in the queue panel"
 queue.py :: remove_snapshot :: f"[queue] removed {match.classification} media snapshot " f"{batch_id[:8]} on maintainer request"
 scheduler.py :: execute_batch :: f"[scheduler] aborting batch {batch.id[:8]}: {abort_reason}"
+scheduler.py :: execute_batch :: f"[scheduler] batch {batch.id[:8]} is recorded but queue " f"cleanup failed ({type(cleanup_err).__name__}); retained " f"terminal queue evidence will not be re-executed"
 scheduler.py :: execute_batch :: f"[scheduler] batch {batch.id[:8]} finished " f"'{final_status}': media snapshot retained at " f"{qmd / batch.id} for retry/inspection"
 scheduler.py :: execute_batch :: f"[scheduler] batch {batch.id[:8]} kept on disk: history " f"write failed, queue record is the only evidence"
 scheduler.py :: execute_batch :: f"[scheduler] batch {batch.id[:8]}: could not record " f"status '{final_status}' either " f"({type(status_err).__name__}); the queue entry stays " f"'running' and the next startup sweep will flag it"

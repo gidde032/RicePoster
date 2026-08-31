@@ -26,6 +26,10 @@ class SlotBatch:
     slot: str
     media_path: str
     caption: str
+    # `slot` remains the public compatibility key. New rows duplicate its
+    # immutable value here so target identity is explicit and future roster
+    # changes can never reinterpret a presentation position.
+    account_id: str | None = None
 
 
 # Keys that older queue rows carry and current code no longer models. `style`
@@ -42,6 +46,7 @@ _REPORTED_SLOT_KEYS: set[str] = set()
 
 # Same once-per-process rule for top-level batch fields (#46).
 _REPORTED_BATCH_KEYS: set[str] = set()
+_ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 @dataclass
@@ -89,6 +94,13 @@ def _slot_from_dict(s: dict) -> SlotBatch:
         # load_queue reports it as the malformed line it is, rather than
         # printing a per-character "unknown field" notice on the way past.
         return SlotBatch(**s)
+    s = dict(s)
+    if s.get("account_id") is None:
+        s["account_id"] = s.get("slot")
+    if not isinstance(s.get("slot"), str) or not _ACCOUNT_ID_RE.fullmatch(s["slot"]):
+        raise ValueError("queued slot target is not a filesystem-safe account id")
+    if s.get("account_id") != s["slot"]:
+        raise ValueError("queued slot/account_id target is ambiguous")
     known = {f.name for f in fields(SlotBatch)}
     unexpected = set(s) - known - _RETIRED_SLOT_KEYS - _REPORTED_SLOT_KEYS
     if unexpected:
@@ -263,6 +275,7 @@ def _snapshot_media(batch_id: str, slots: list[SlotBatch],
             slot=s.slot,
             media_path=str(dst),
             caption=s.caption,
+            account_id=s.account_id or s.slot,
         ))
     return updated
 

@@ -105,7 +105,7 @@ def test_a_slot_that_posted_on_one_platform_still_counts_as_posted():
 
     asyncio.run(poster_browser._notify_run_summary(rec, [result]))
 
-    assert rec.sent[0]["body"] == "1/1 posted, 1 skipped (no session: A IG)"
+    assert rec.sent[0]["body"] == "1/1 posted, 1 skipped (no session: slot A IG)"
     assert rec.sent[0]["priority"] == "default"
 
 

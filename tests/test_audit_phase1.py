@@ -241,13 +241,14 @@ class TestCrashPreservesAuditTrail:
         env.run(self._boom)
         assert (env.qmedia / "batch1").exists()
 
-    def test_crash_notification_names_the_slots(self, tmp_path):
-        """The old body was just type(e).__name__ — unactionable at 6am."""
+    def test_crash_notification_names_targets_without_account_ids(self, tmp_path):
+        """The notification is actionable without exporting durable IDs."""
         env = _Env(tmp_path, slot_ids=("A", "B"))
         env.run(self._boom)
 
         bodies = " | ".join(s["body"] for s in env.notifier.sent)
-        assert "slots: A, B" in bodies
+        assert "accounts: account 1, account 2" in bodies
+        assert "slots: A, B" not in bodies
         assert "RuntimeError" in bodies
         assert any(s["priority"] == "high" for s in env.notifier.sent)
 
@@ -275,7 +276,9 @@ class TestCleanFailureIsReported:
         env.run(all_fail)
 
         assert any("failed" in s["title"] for s in env.notifier.sent)
-        assert "slots: A" in " | ".join(s["body"] for s in env.notifier.sent)
+        assert "accounts: account 1" in " | ".join(
+            s["body"] for s in env.notifier.sent
+        )
         assert len(env.history) == 1, "failed slots still get a history row"
 
     def test_success_sends_no_failure_notification(self, tmp_path):

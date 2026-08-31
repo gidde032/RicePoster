@@ -108,23 +108,28 @@ async def _push(notifier, title: str, body: str, priority: str = "default"):
     return await send_safe(notifier, title, body, priority)
 
 
-async def _notify_slot_result(notifier, result: PostResult):
+async def _notify_slot_result(
+    notifier, result: PostResult, notification_label: str | None = None
+):
     """Push one notification per platform that errored or came back unconfirmed.
     Skips ("no session") are deliberately silent — the spec notifies on
     error/unconfirmed only; a skip is neither."""
+    label = notification_label or f"slot {result.slot}"
     for platform, status, detail in _platform_events(result):
         if status == "skipped":
             continue
         priority = "high" if status == "error" else "default"
         await _push(
             notifier,
-            title=f"RicePoster: slot {result.slot} {platform} {status}",
-            body=f"Slot {result.slot} {platform}: {status} — {_shorten(detail)}",
+            title=f"RicePoster: {label} {platform} {status}",
+            body=f"{label.capitalize()} {platform}: {status} — {_shorten(detail)}",
             priority=priority,
         )
 
 
-async def _notify_run_summary(notifier, results: list[PostResult]):
+async def _notify_run_summary(
+    notifier, results: list[PostResult], notification_labels: dict[str, str] | None = None
+):
     """Push the end-of-run summary. A skipped platform is not a failure, and an
     unconfirmed slot is not a plain success — both are surfaced distinctly:
       "3/3 posted successfully"
@@ -141,7 +146,9 @@ async def _notify_run_summary(notifier, results: list[PostResult]):
     fail_parts = []       # "slot B TikTok: <detail>"
     skip_notes = []       # "A IG"
     unconfirmed = 0
+    notification_labels = notification_labels or {}
     for r in results:
+        label = notification_labels.get(r.slot, f"slot {r.slot}")
         events = _platform_events(r)
         if any(status == "error" for _, status, _ in events):
             failed.append(r)
@@ -157,16 +164,18 @@ async def _notify_run_summary(notifier, results: list[PostResult]):
             skipped_only.append(r)
         for platform, status, detail in events:
             if status == "error":
-                fail_parts.append(f"slot {r.slot} {platform}: {_shorten(detail, 60)}")
+                fail_parts.append(f"{label} {platform}: {_shorten(detail, 60)}")
             elif status == "skipped":
-                skip_notes.append(f"{r.slot} {'IG' if platform == 'Instagram' else 'TT'}")
+                skip_notes.append(f"{label} {'IG' if platform == 'Instagram' else 'TT'}")
             elif status == "unconfirmed":
                 unconfirmed += 1
     posted = total - len(failed) - len(skipped_only)
 
     segments = []
     if failed:
-        detail_str = "; ".join(fail_parts) if fail_parts else ", ".join(r.slot for r in failed)
+        detail_str = "; ".join(fail_parts) if fail_parts else ", ".join(
+            notification_labels.get(r.slot, f"slot {r.slot}") for r in failed
+        )
         segments.append(f"{len(failed)} failed: [{detail_str}]")
     if skip_notes:
         segments.append(f"{len(skip_notes)} skipped (no session: {', '.join(skip_notes)})")
@@ -321,6 +330,10 @@ async def post_all(
     if notifier is None:
         notifier = get_notifier()
     results = []
+    notification_labels = {
+        s["slot"]: s.get("notification_label", f"account {index + 1}")
+        for index, s in enumerate(slots)
+    }
     for i, s in enumerate(slots):
         # Randomised gap between accounts (F4). Off by default; see
         # INTER_SLOT_DELAY_MIN_S/MAX_S in config.py. Deliberately *before*
@@ -340,6 +353,6 @@ async def post_all(
         results.append(result)
         # Notify per-slot as soon as it lands, so a phone alert isn't held
         # hostage by the next slot's slow browser run.
-        await _notify_slot_result(notifier, result)
-    await _notify_run_summary(notifier, results)
+        await _notify_slot_result(notifier, result, notification_labels[result.slot])
+    await _notify_run_summary(notifier, results, notification_labels)
     return results

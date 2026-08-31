@@ -7,6 +7,17 @@ is the only remaining v1.0.0 item; it needs an approved live TikTok run.
 
 ### Added
 
+- **Saved accounts, rosters, and lightweight Stats.** Accounts are discovered
+  from platform-first session folders while the configured compatibility
+  roster and legacy TikTok cookie exports remain readable. The Accounts view
+  supports ordered active accounts, named local rosters, per-account caption
+  defaults, saved-session status, persistent Instagram device assignments,
+  and exact target confirmation. Queue and history rows preserve immutable
+  account IDs so changing the active roster cannot retarget scheduled work.
+  The read-only Stats view aggregates confirmed and uncertain outcomes,
+  attempts, executions, account usage, activity dates, and tracked media bytes
+  without adding a database.
+
 - **Pull from Clipper.** A one-click ingest of RiceClipper handoff batches:
   RiceClipper writes finished captioned clips into a shared handoff folder
   (`HANDOFF_DIR`, default `~/riceclipper-handoff`), and the new **Pull from
@@ -18,8 +29,12 @@ is the only remaining v1.0.0 item; it needs an approved live TikTok run.
   is captioned on a real frame exactly like a manual upload, in the
   `CLIPPER_INGEST_STYLE` style (public default `generic`; local configuration
   may select an ignored custom style). The maintainer lands at
-  the normal review → Post All step. The batch is deleted only after every clip
-  stages; a batch with more clips than configured slots is rejected.
+  the normal review → Post All step. Clips target the current active account
+  IDs in roster order. After every clip stages, a durable receipt freezes those
+  targets and file hashes before the source moves into a retained local archive.
+  An interrupted browser pull replays that receipt and restores missing staged
+  media; acknowledgement marks it applied without deleting the source. A batch
+  with more clips than active accounts is rejected.
   `POST /api/pull-from-clipper` and `backend/handoff_pickup.py` never post and
   never schedule.
 

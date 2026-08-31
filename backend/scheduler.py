@@ -95,11 +95,10 @@ async def startup_sweep(queue_file: Path | None = None,
         save_queue(batches, qf)
 
     for b in interrupted:
-        slots_desc = ", ".join(s.slot for s in b.slots)
         await send_safe(
             notifier,
             title="RicePoster: batch interrupted",
-            body=f"Batch {b.id[:8]} (slots: {slots_desc}) was interrupted by a "
+            body=f"Batch {b.id[:8]} ({_slots_desc(b)}) was interrupted by a "
                  f"server shutdown. Check accounts for partial posts, then dismiss.",
             priority="high",
         )
@@ -160,30 +159,36 @@ async def execute_batch(batch: QueuedBatch,
         # Only skip the entire slot when ALL platforms are expired/no_session.
         # A single live platform is worth attempting.
         proceeding_slots = []
-        for s in batch.slots:
+        for account_position, s in enumerate(batch.slots, 1):
+            target_id = s.account_id or s.slot
+            notification_label = f"account {account_position}"
             platform_skips: dict[str, str] = {}
             for platform in ["instagram", "tiktok"]:
-                status = await check_fn(s.slot, platform)
+                status = await check_fn(target_id, platform)
                 if status in ("expired", "no_session"):
                     platform_skips[platform] = status
                     await send_safe(
                         notifier,
-                        title=f"RicePoster: slot {s.slot} {platform} skipped",
+                        title=f"RicePoster: {notification_label} {platform} skipped",
                         body=f"Pre-flight check: {status}",
                         priority="high",
                     )
             if len(platform_skips) == 2:
                 all_results.append(PostResult(
-                    slot=s.slot,
-                    errors=[f"pre-flight: {p} {st}"
-                            for p, st in platform_skips.items()],
+                    slot=target_id,
+                    errors=[
+                        f"{'IG' if p == 'instagram' else 'TT'} post: skipped "
+                        f"(pre-flight ruled the session out: {st})"
+                        for p, st in platform_skips.items()
+                    ],
                 ))
             else:
                 proceeding_slots.append({
-                    "slot": s.slot,
+                    "slot": target_id,
                     "media_path": Path(s.media_path),
                     "caption": s.caption,
                     "media_type": "video",
+                    "notification_label": notification_label,
                     # Carry the per-platform verdict through to post_slot
                     # (review 2026-07-26, finding #2). Without it post_slot
                     # falls back to session_exists(), which cannot tell an
@@ -222,7 +227,28 @@ async def execute_batch(batch: QueuedBatch,
         # startup_sweep and due_batches only ever pick up "pending" batches,
         # and this one now carries a terminal status.
         if _append_scheduled_history(hf, batch, all_results):
-            _prune_batch(batch.id, qf)
+            cleanup_complete = False
+            try:
+                # Persist the terminal state before pruning. If pruning fails,
+                # the retained row is non-runnable and history is not appended
+                # a second time by the outer crash path.
+                _update_status(batch.id, final_status, qf)
+                _prune_batch(batch.id, qf)
+                cleanup_complete = True
+            except Exception as cleanup_err:
+                _log.error(
+                    f"[scheduler] batch {batch.id[:8]} is recorded but queue "
+                    f"cleanup failed ({type(cleanup_err).__name__}); retained "
+                    f"terminal queue evidence will not be re-executed"
+                )
+                await send_safe(
+                    notifier,
+                    title="RicePoster: scheduled batch cleanup incomplete",
+                    body=f"Batch {batch.id[:8]} was recorded, but its terminal "
+                         f"queue entry could not be removed. Check the queue and "
+                         f"server log.",
+                    priority="high",
+                )
             # A batch only loses its media once every slot posted successfully
             # (maintainer decision 2026-07-27). "partial" and "failed" mean at
             # least one slot did not go out, and its media was the only copy
@@ -231,7 +257,7 @@ async def execute_batch(batch: QueuedBatch,
             # partial the maintainer might not even notice until the snapshot
             # was already gone. Same forensic rationale as the crash path
             # below, which has always retained its snapshot.
-            if final_status == "done":
+            if final_status == "done" and cleanup_complete:
                 _delete_snapshot(batch.id, qmd)
             else:
                 _log.info(f"[scheduler] batch {batch.id[:8]} finished "
@@ -340,7 +366,10 @@ async def _notify_history_write_failed(notifier, batch: QueuedBatch,
 
 
 def _slots_desc(batch: QueuedBatch) -> str:
-    return "slots: " + (", ".join(s.slot for s in batch.slots) or "none")
+    # Durable account IDs may be real handles. Notifications can leave the
+    # machine, so describe targets by their immutable order within the batch.
+    labels = [f"account {index}" for index, _slot in enumerate(batch.slots, 1)]
+    return "accounts: " + (", ".join(labels) or "none")
 
 
 def _reload_batch(batch_id: str, queue_file: Path | None = None) -> QueuedBatch | None:
@@ -404,11 +433,19 @@ def _append_scheduled_history(history_file: Path, batch: QueuedBatch,
     try:
         with open(history_file, "a") as f:
             for r in results:
-                slot_info = next((s for s in batch.slots if s.slot == r.slot), None)
+                slot_info = next(
+                    (s for s in batch.slots if (s.account_id or s.slot) == r.slot), None
+                )
+                media_path = Path(slot_info.media_path) if slot_info else None
                 f.write(json.dumps({
                     "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     "slot": r.slot,
+                    "account_id": r.slot,
                     "file": Path(slot_info.media_path).name if slot_info else "",
+                    "media_bytes": (
+                        media_path.stat().st_size
+                        if media_path and media_path.is_file() else 0
+                    ),
                     "caption": slot_info.caption if slot_info else "",
                     "post_mode": "browser",
                     "headless": batch.headless,
