@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RicePoster</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RicePoster</title>
+  <link rel="icon" href="/static/logo-ratified.png" type="image/png">
 <style>
   /* ---- RiceClipper Slate tokens (exact values, ratified contract) ---- */
   :root {
@@ -75,26 +76,17 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 4px 8px 18px;
+    padding: 0 8px 8px;
   }
 
   .brand img {
-    width: 38px;
-    height: 38px;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
     border-radius: 8px;
     background: var(--backdrop);
     flex: 0 0 auto;
   }
-
-  .brand-name {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    line-height: 1.15;
-    color: var(--primary-text);
-  }
-  .brand-name span { display: block; color: var(--muted-grey); font-weight: 600; }
 
   .nav-group {
     font-size: 10px;
@@ -291,6 +283,7 @@
     color: var(--primary-text);
     min-width: 18px;
   }
+  .slot-account-id { color:var(--muted-grey); font-size:10px; overflow-wrap:anywhere; }
   .slot-trackers { display: flex; align-items: center; gap: 14px; }
   .tracker { display: inline-flex; align-items: center; gap: 5px; }
   .tracker .plat-ico { width: 17px; height: 17px; color: var(--rice-grey); flex: 0 0 auto; }
@@ -684,6 +677,24 @@
   .history-mode { text-transform: uppercase; font-size: 10px; color: var(--warn); margin-left: 4px; }
   .history-empty { padding: 14px 0; font-size: 13px; color: var(--muted-grey); }
 
+  /* Accounts + Stats: restrained Slate data surfaces, no chart chrome. */
+  .account-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:16px; }
+  .account-toolbar label { display:grid; gap:6px; color:var(--muted-grey); font-size:11px; }
+  .account-toolbar input, .account-toolbar select { min-width:180px; }
+  .account-list { display:grid; gap:10px; }
+  .account-row { display:grid; grid-template-columns:minmax(160px,1fr) auto auto minmax(150px,220px) auto; gap:14px; align-items:center; padding:14px; background:var(--interior); border:1px solid var(--hairline); border-radius:8px; }
+  .account-name { font-weight:650; overflow-wrap:anywhere; }
+  .account-meta { display:flex; flex-wrap:wrap; gap:8px; color:var(--muted-grey); font-size:11px; }
+  .account-active { min-height:44px; display:inline-flex; align-items:center; gap:7px; }
+  .account-order { display:flex; gap:6px; }
+  .account-order button { min-width:44px; min-height:44px; }
+  .account-state-error { padding:12px; margin-bottom:14px; border:1px solid var(--fail); color:var(--primary-text); background:var(--interior); }
+  .stats-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+  .stat-card { padding:16px; background:var(--interior); border:1px solid var(--hairline); border-radius:8px; }
+  .stat-label { color:var(--muted-grey); font-size:11px; text-transform:uppercase; letter-spacing:.6px; }
+  .stat-value { display:block; margin-top:7px; color:var(--primary-text); font-size:22px; font-weight:700; overflow-wrap:anywhere; }
+  .stat-note { color:var(--muted-grey); font-size:11px; margin-top:5px; }
+
   /* ============================ Help ============================ */
 
   .help-search {
@@ -775,6 +786,9 @@
     .topbar { padding: 12px 16px; flex-wrap: wrap; }
     .topbar-right { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
     .header-badges { flex-wrap: wrap; justify-content: flex-end; }
+    .account-row { grid-template-columns:1fr; align-items:stretch; }
+    .account-order { justify-content:flex-start; }
+    .stats-grid { grid-template-columns:1fr; }
     /* The top-right Local Media shortcut is redundant with the sidebar entry on
        narrow; drop it (and the decorative initial) so the bar cannot overflow. */
     .topbar-shortcut { display: none; }
@@ -791,7 +805,6 @@
       <!-- Approved symbol-only RicePoster logo, served as the ratified PNG.
            Never recreate in SVG/CSS/glyph; pinned by SHA-256 regression test. -->
       <img src="/static/logo-ratified.png" alt="RicePoster logo">
-      <div class="brand-name">RICEPOSTER<span>SLATE</span></div>
     </div>
 
     <nav aria-label="Primary">
@@ -803,6 +816,14 @@
       <button type="button" class="nav-item" id="nav-review" data-view="review" aria-current="page" aria-label="Review" onclick="navTo('review')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
         <span class="nav-label">Review</span>
+      </button>
+      <button type="button" class="nav-item" id="nav-accounts" data-view="accounts" aria-label="Accounts" onclick="navTo('accounts')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-4 2-6 5-6s5 2 5 6M14 15c3 0 5 1.7 5 5"/></svg>
+        <span class="nav-label">Accounts</span>
+      </button>
+      <button type="button" class="nav-item" id="nav-stats" data-view="stats" aria-label="Stats" onclick="navTo('stats')">
+        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+        <span class="nav-label">Stats</span>
       </button>
       <button type="button" class="nav-item" id="nav-queue" data-view="queue" aria-label="Queue" onclick="navTo('queue')">
         <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12l16-8-6 16-3-6-7-2z"/></svg>
@@ -874,6 +895,36 @@
       </div>
 
       <div class="status-panel" id="statusPanel" aria-live="polite"></div>
+    </section>
+
+    <!-- ---------- Accounts ---------- -->
+    <section class="view" role="region" id="view-accounts" aria-label="Accounts" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Accounts</h1>
+        <p class="view-sub">Choose the exact accounts in Review, their order, saved rosters, and local caption defaults.</p>
+      </div>
+      <div id="accountStateError" class="account-state-error" role="alert" hidden></div>
+      <div class="account-toolbar">
+        <label>Saved roster
+          <select id="rosterSelect" aria-label="Saved roster" onchange="selectRoster(this.value)"></select>
+        </label>
+        <label>Roster name
+          <input id="rosterName" maxlength="40" placeholder="daily three" aria-label="Roster name">
+        </label>
+        <button type="button" class="btn-secondary btn-small" onclick="saveRoster()">Save current</button>
+        <button type="button" class="btn-secondary btn-small" onclick="renameRoster()">Rename</button>
+        <button type="button" class="btn-clear btn-small" onclick="deleteRoster()">Delete</button>
+      </div>
+      <div id="accountsList" class="account-list"></div>
+    </section>
+
+    <!-- ---------- Stats ---------- -->
+    <section class="view" role="region" id="view-stats" aria-label="Stats" hidden>
+      <div class="view-head">
+        <h1 class="view-title">Stats</h1>
+        <p class="view-sub">Read-only lifetime totals from local history and the current storage footprint.</p>
+      </div>
+      <div id="statsPanel" class="stats-grid" aria-live="polite"></div>
     </section>
 
     <!-- ---------- Local Media ---------- -->
@@ -995,6 +1046,8 @@
 <script>
 const state = {
   accounts: [],
+  availableAccounts: [],
+  accountState: { active_account_ids: [], rosters: {}, caption_defaults: {}, device_profiles: {} },
   // Keyed by slot id; built from /api/accounts in init() — the backend's
   // ACCOUNT_SLOTS config is the single source of truth for the slot list
   slots: {},
@@ -1008,10 +1061,11 @@ const state = {
   // Client-side run label shown in the condensed summary. A UI identifier for
   // the current Post All run — not platform data. Empty renders as an em-dash.
   runId: '',
+  selectedRoster: '',
 };
 
 function emptySlot() {
-  return { file: null, filename: '', mediaType: '', topic: '', caption: '', style: '', prevCaption: '', thumb: '' };
+  return { file: null, filename: '', mediaType: '', topic: '', caption: '', style: '', prevCaption: '', thumb: '', previewUrl: '', previewIsObjectUrl: false };
 }
 
 // --- shared fetch and DOM helpers (tech-debt audit FE-2, FE-3, FE-5, FE-8) ---
@@ -1070,9 +1124,10 @@ const slotElOpt = (name, slot) => elOpt(`${name}_${slot}`);
 // Identical slot payload for POST /api/post and POST /api/queue, including the
 // per-session headless override that was duplicated with it (FE-3).
 function buildSlotsPayload() {
+  const activeIds = new Set(state.accounts.map(a => a.slot));
   const payload = {
     slots: Object.entries(state.slots)
-      .filter(([_, s]) => s.filename && s.caption.trim())
+      .filter(([slot, s]) => activeIds.has(slot) && s.filename && s.caption.trim())
       .map(([slot, s]) => ({
         slot,
         filename: s.filename,
@@ -1093,6 +1148,10 @@ async function init() {
     await handleFetchError(resp);
     const data = await resp.json();
     state.accounts = data.accounts;
+    state.availableAccounts = data.available_accounts || data.accounts;
+    state.accountState = data.account_state || state.accountState;
+    state.accountStateError = data.account_state_error || '';
+    state.deviceProfileCapacity = data.device_profile_capacity || 0;
     state.sessions = data.sessions || {};
     state.postMode = data.post_mode || 'mock';
     state.headless = data.headless;
@@ -1101,7 +1160,8 @@ async function init() {
     if (typeof data.caption_limit === 'number') state.captionLimit = data.caption_limit;
     for (const account of state.accounts) {
       const s = state.slots[account.slot] || (state.slots[account.slot] = emptySlot());
-      if (!s.style) s.style = state.defaultCaptionStyle;
+      if (!s.style) s.style = state.accountState.caption_defaults?.[account.slot]
+        || state.defaultCaptionStyle;
     }
 
     // Header badges
@@ -1122,29 +1182,10 @@ async function init() {
     badges.innerHTML += `<span class="badge queue-badge" id="queueBadge" role="button" tabindex="0" onclick="navTo('queue')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();navTo('queue')}" style="display:none"></span>`;
     refreshQueue();
 
-    // Status bar with session info
-    if (data.post_mode === 'browser' && Object.keys(state.sessions).length > 0) {
-      const bar = el('statusBar');
-      bar.style.display = '';
-      let html = '<span class="status-bar-section"><span class="label">Sessions</span></span>';
-
-      for (const account of state.accounts) {
-        const s = state.sessions[account.slot];
-        if (!s) continue;
-        const igDot = s.instagram ? 'dot-on' : 'dot-off';
-        const ttDot = s.tiktok ? 'dot-on' : 'dot-off';
-        html += `
-          <span class="status-bar-section">
-            <strong style="color:#ccc">${account.name}</strong>
-            <span class="session-dot"><span class="dot ${igDot}"></span>IG</span>
-            <span class="session-dot"><span class="dot ${ttDot}"></span>TT</span>
-          </span>
-        `;
-      }
-      bar.innerHTML = html;
-    }
+    renderSessionStrip();
 
     renderSlots();
+    renderAccounts();
     refreshMediaInfo();
     renderSummary(null);
   } catch (e) {
@@ -1165,6 +1206,30 @@ async function init() {
         </div>`;
     }
   }
+}
+
+function renderSessionStrip() {
+  const bar = elOpt('statusBar');
+  if (!bar) return;
+  if (state.postMode !== 'browser' || !Object.keys(state.sessions || {}).length) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+  bar.style.display = '';
+  let html = '<span class="status-bar-section"><span class="label">Sessions</span></span>';
+  for (const account of state.accounts) {
+    const session = state.sessions[account.slot];
+    if (!session) continue;
+    const igDot = session.instagram ? 'dot-on' : 'dot-off';
+    const ttDot = session.tiktok ? 'dot-on' : 'dot-off';
+    html += `<span class="status-bar-section">
+      <strong style="color:#ccc">${esc(account.name)} [${esc(account.slot)}]</strong>
+      <span class="session-dot"><span class="dot ${igDot}"></span>IG</span>
+      <span class="session-dot"><span class="dot ${ttDot}"></span>TT</span>
+    </span>`;
+  }
+  bar.innerHTML = html;
 }
 
 function renderHeadlessBadge() {
@@ -1221,9 +1286,11 @@ function renderSlots() {
 
     const card = document.createElement('div');
     card.className = 'slot-card';
+    card.dataset.accountId = slot;
     card.innerHTML = `
       <div class="slot-head">
         <span class="slot-num" title="${escAttr(account.name)}" aria-label="${escAttr('Slot ' + num + ': ' + account.name)}">${num}</span>
+        <span class="slot-account-id" title="${escAttr(account.name)}">[${esc(slot)}]</span>
         ${sessDots}
         <span id="mediaTypeBadge_${slot}" class="media-type-badge" style="display:none"></span>
         <span class="slot-menu" aria-hidden="true">&#8943;</span>
@@ -1272,6 +1339,7 @@ function renderSlots() {
       <div class="slot-result" id="slotResult_${slot}" aria-live="polite"></div>
     `;
     container.appendChild(card);
+    hydrateSlotCard(slot);
 
     // Drag and drop
     const dropZone = card.querySelector(`#dropZone_${slot}`);
@@ -1285,6 +1353,67 @@ function renderSlots() {
   }
 }
 
+function clearSlotPreview(s) {
+  if (!s) return;
+  if (s.previewIsObjectUrl && s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+  s.previewUrl = '';
+  s.previewIsObjectUrl = false;
+}
+
+function renderSlotPreview(slot) {
+  const s = state.slots[slot];
+  const dropZone = slotElOpt('dropZone', slot);
+  const dropText = slotElOpt('dropText', slot);
+  if (!s || !dropZone || !dropText) return;
+  const oldPreview = dropZone.querySelector('img, video');
+  if (oldPreview) oldPreview.remove();
+  if (!s.previewUrl && s.file) {
+    s.previewUrl = URL.createObjectURL(s.file);
+    s.previewIsObjectUrl = true;
+  } else if (!s.previewUrl && s.filename) {
+    s.previewUrl = `/api/media/${encodeURIComponent(s.filename)}`;
+    s.previewIsObjectUrl = false;
+  }
+  if (!s.previewUrl) {
+    dropZone.classList.remove('has-file');
+    dropText.style.display = '';
+    return;
+  }
+  dropText.style.display = 'none';
+  dropZone.classList.add('has-file');
+  const isVideo = s.mediaType === 'video' || s.file?.type?.startsWith('video');
+  const preview = document.createElement(isVideo ? 'video' : 'img');
+  preview.src = s.previewUrl;
+  if (isVideo) {
+    preview.muted = true;
+    preview.loop = true;
+    preview.autoplay = true;
+    preview.playsInline = true;
+  }
+  dropZone.appendChild(preview);
+}
+
+function hydrateSlotCard(slot) {
+  const s = state.slots[slot];
+  if (!s) return;
+  const topic = slotElOpt('topic', slot);
+  if (topic) topic.value = s.topic || '';
+  const caption = slotElOpt('caption', slot);
+  if (caption) {
+    caption.value = s.caption || '';
+    autoGrow(caption);
+  }
+  const badge = slotElOpt('mediaTypeBadge', slot);
+  if (badge && s.mediaType) {
+    badge.textContent = s.mediaType;
+    badge.className = `media-type-badge ${s.mediaType}`;
+    badge.style.display = '';
+  }
+  updateCharCount(slot);
+  updateThumbChip(slot);
+  renderSlotPreview(slot);
+}
+
 // --- Pull from Clipper: stage the oldest RiceClipper handoff batch. The backend
 // stages media only; we show a playable preview per slot, capture the frame the
 // caption AI will see (same as manual), then auto-generate captions through the
@@ -1292,6 +1421,8 @@ function renderSlots() {
 // captions and clicks Post All.
 async function pullFromClipper() {
   const btn = elOpt('btnPullClipper');
+  let stagedBatchId = '';
+  let reviewApplied = false;
   if (btn) btn.disabled = true;
   setPullStatus('Pulling the oldest batch from RiceClipper…');
   try {
@@ -1302,12 +1433,15 @@ async function pullFromClipper() {
       setPullStatus(data.reason || 'Nothing to pull.');
       return;
     }
+    stagedBatchId = data.batch_id;
+    assertPulledTargets(data);
 
     const pulled = [];
     for (const entry of data.slots) {
       const mediaUrl = applyPulledSlot(entry);
       if (mediaUrl && state.slots[entry.slot]) pulled.push({ slot: entry.slot, mediaUrl });
     }
+    reviewApplied = pulled.length === data.slots.length;
     updateButtons();
     setPullStatus(`Pulled batch ${data.batch_id} into ${data.slots.length} slot(s). Capturing frames and writing captions…`);
 
@@ -1319,11 +1453,39 @@ async function pullFromClipper() {
     }));
     await generateAll();
 
-    setPullStatus(`Pulled batch ${data.batch_id} into ${data.slots.length} slot(s). Review captions, then Post All.`);
+    const ack = await fetchWithTimeout(
+      `/api/pull-from-clipper/${encodeURIComponent(data.batch_id)}/ack`,
+      { method: 'POST' },
+    );
+    await handleFetchError(ack);
+
+    const verb = data.replayed ? 'Recovered' : 'Pulled';
+    setPullStatus(`${verb} batch ${data.batch_id} into ${data.slots.length} account(s). Review captions, then Post All. Source archived locally.`);
   } catch (e) {
-    setPullStatus(`Pull failed: ${e.message || e}`, true);
+    if (stagedBatchId) {
+      const phase = reviewApplied
+        ? 'Review was prepared, but completion or receipt acknowledgement failed'
+        : 'Batch was staged, but Review could not apply it';
+      setPullStatus(`${phase}: ${e.message || e}. Source remains archived; correct the issue and retry Pull.`, true);
+    } else {
+      setPullStatus(`Pull did not finish in this browser: ${e.message || e}. Retry is safe; unacknowledged batches are archived and replayed.`, true);
+    }
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+function assertPulledTargets(data) {
+  const activeIds = new Set(state.accounts.map(account => account.slot));
+  const missing = data.slots.filter(entry =>
+    !activeIds.has(entry.slot)
+    || !state.slots[entry.slot]
+    || !slotElOpt('thumbRow', entry.slot)
+    || !slotElOpt('thumbChip', entry.slot)
+    || !slotElOpt('dropZone', entry.slot)
+  ).map(entry => entry.slot);
+  if (missing.length) {
+    throw new Error(`active Review cards are missing for: ${missing.join(', ')}`);
   }
 }
 
@@ -1335,6 +1497,8 @@ function applyPulledSlot(entry) {
   const slot = entry.slot;
   const s = state.slots[slot];
   if (!s) return ''; // slot not configured in this session
+  clearSlotPreview(s);
+  s.file = null;
   s.filename = entry.filename;
   s.mediaType = entry.media_type || 'video';
   s.topic = entry.topic || '';
@@ -1358,22 +1522,11 @@ function applyPulledSlot(entry) {
 
   // Playable preview straight from the server-staged media.
   const mediaUrl = `/api/media/${encodeURIComponent(entry.filename)}`;
-  const dropZone = slotElOpt('dropZone', slot);
-  const dropText = slotElOpt('dropText', slot);
-  if (dropText) dropText.style.display = 'none';
-  if (dropZone) {
-    dropZone.classList.add('has-file');
-    const oldPreview = dropZone.querySelector('img, video');
-    if (oldPreview) oldPreview.remove();
-    const video = document.createElement('video');
-    video.src = mediaUrl;
-    video.muted = true;
-    video.loop = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.controls = true;
-    dropZone.appendChild(video);
-  }
+  s.previewUrl = mediaUrl;
+  s.previewIsObjectUrl = false;
+  renderSlotPreview(slot);
+  const video = slotElOpt('dropZone', slot)?.querySelector('video');
+  if (video) video.controls = true;
   return mediaUrl;
 }
 
@@ -1470,7 +1623,9 @@ async function handleFile(slot, file) {
   if (!file) return;
 
   const s = state.slots[slot];
+  clearSlotPreview(s);
   s.file = file;
+  s.filename = '';
   s.thumb = '';
   // A previous generation failure does not describe this file. handleFile
   // updates the slot in place rather than going through renderSlots(), so the
@@ -1480,35 +1635,15 @@ async function handleFile(slot, file) {
   // Capture in the background; guard against the file being replaced
   // before the frame is ready
   captureThumbnail(file).then(dataUrl => {
-    if (s.file === file) {
+    if (state.slots[slot] === s && s.file === file) {
       s.thumb = dataUrl;
       updateThumbChip(slot);
     }
   });
 
   // Show preview
-  const dropZone = slotEl('dropZone', slot);
   const dropText = slotEl('dropText', slot);
-  dropText.style.display = 'none';
-  dropZone.classList.add('has-file');
-
-  // Remove old preview
-  const oldPreview = dropZone.querySelector('img, video');
-  if (oldPreview) oldPreview.remove();
-
-  if (file.type.startsWith('video')) {
-    const video = document.createElement('video');
-    video.src = URL.createObjectURL(file);
-    video.muted = true;
-    video.loop = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    dropZone.appendChild(video);
-  } else {
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(file);
-    dropZone.appendChild(img);
-  }
+  renderSlotPreview(slot);
 
   // Upload to backend — XHR so big video uploads show real progress
   const formData = new FormData();
@@ -1537,6 +1672,7 @@ async function handleFile(slot, file) {
       xhr.onerror = () => reject(new Error('network error'));
       xhr.send(formData);
     });
+    if (state.slots[slot] !== s) return;
     s.filename = data.filename;
     s.mediaType = data.media_type;
 
@@ -1547,6 +1683,7 @@ async function handleFile(slot, file) {
     refreshMediaInfo();
   } catch (e) {
     console.error(`Upload failed for slot ${slot}:`, e);
+    if (state.slots[slot] !== s) return;
     s.filename = '';
     dropText.style.display = '';
     dropText.textContent = `Upload failed: ${e.message} — click to retry`;
@@ -1723,9 +1860,12 @@ function statusCell(status) {
   if (status === 'none' || !status) return '<span class="cell-status cell-muted">—</span>';
   const map = {
     ok:          ['rs-ok',    '✓', 'Confirmed'],
+    confirmed:   ['rs-ok',    '✓', 'Confirmed'],
     unconfirmed: ['rs-warn',  '⚠', 'Unconfirmed'],
     error:       ['rs-fail',  '✗', 'Failed'],
+    failed:      ['rs-fail',  '✗', 'Failed'],
     skipped:     ['rs-muted', '⊘', 'Skipped'],
+    not_attempted: ['cell-muted', '—', '—'],
   };
   const [cls, icon, label] = map[status] || ['cell-muted', '—', '—'];
   return `<span class="cell-status ${cls}">${icon} ${esc(label)}</span>`;
@@ -1766,6 +1906,7 @@ function autoGrow(el) {
 
 function resetRun() {
   for (const s of Object.values(state.slots)) {
+    clearSlotPreview(s);
     s.file = null;
     s.filename = '';
     s.mediaType = '';
@@ -1808,6 +1949,282 @@ async function clearMedia() {
   }
 }
 
+// --- Accounts: local ordered roster + saved roster CRUD -------------------
+
+function currentActiveIds() {
+  return state.accounts.map(account => account.slot);
+}
+
+function renderAccounts() {
+  const list = elOpt('accountsList');
+  if (!list) return;
+  const focusedRow = document.activeElement?.closest?.('.account-row');
+  const focusAccountId = focusedRow?.dataset.accountId;
+  const focusControl = document.activeElement?.dataset.accountControl;
+  const error = elOpt('accountStateError');
+  if (error) {
+    error.hidden = !state.accountStateError;
+    error.textContent = state.accountStateError
+      ? `Local account state needs repair: ${state.accountStateError}` : '';
+  }
+  const active = currentActiveIds();
+  list.innerHTML = (state.availableAccounts || []).map(account => {
+    const index = active.indexOf(account.slot);
+    const sessions = account.sessions || {};
+    const ig = sessions.instagram ? 'Instagram saved' : 'Instagram unavailable';
+    const tt = sessions.tiktok ? 'TikTok saved' : 'TikTok unavailable';
+    const queued = account.queued_target ? ' · queued target retained' : '';
+    const assignedProfile = state.accountState.device_profiles?.[account.slot];
+    const profile = !account.instagram_device_required
+      ? 'not required (TikTok only)'
+      : assignedProfile == null ? 'not assigned' : `profile ${assignedProfile + 1}`;
+    const selectedStyle = state.accountState.caption_defaults?.[account.slot]
+      || state.defaultCaptionStyle || 'generic';
+    const options = (state.captionStyles || []).map(style =>
+      `<option value="${escAttr(style.name)}" ${style.name === selectedStyle ? 'selected' : ''}>${esc(style.display_name)}</option>`
+    ).join('');
+    return `<div class="account-row" data-account-id="${escAttr(account.slot)}">
+      <div><div class="account-name">${esc(account.name)}</div>
+        <div class="account-meta"><span>ID ${esc(account.slot)}</span><span>${esc(ig)}</span><span>${esc(tt)}</span><span>Device ${esc(profile)}${esc(queued)}</span></div></div>
+      <label class="account-active"><input type="checkbox" ${index >= 0 ? 'checked' : ''}
+        aria-label="Set ${escAttr(account.name)} [${escAttr(account.slot)}] active"
+        data-account-control="active"
+        onchange="toggleAccount('${escAttr(account.slot)}', this.checked)"> Active</label>
+      <span>${index >= 0 ? `Order ${index + 1}` : 'Inactive'}</span>
+      <label>Caption default<select aria-label="Caption default for ${escAttr(account.name)}"
+        data-account-control="caption-default" onchange="setCaptionDefault('${escAttr(account.slot)}', this.value)">${options}</select></label>
+      <div class="account-order">
+        <button type="button" class="btn-secondary btn-small" data-account-control="earlier" aria-label="Move ${escAttr(account.name)} earlier" ${index <= 0 ? 'disabled' : ''} onclick="moveAccount('${escAttr(account.slot)}', -1)">↑</button>
+        <button type="button" class="btn-secondary btn-small" data-account-control="later" aria-label="Move ${escAttr(account.name)} later" ${index < 0 || index === active.length - 1 ? 'disabled' : ''} onclick="moveAccount('${escAttr(account.slot)}', 1)">↓</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="history-empty">No saved accounts were discovered.</div>';
+
+  const roster = elOpt('rosterSelect');
+  if (roster) {
+    roster.innerHTML = '<option value="">Choose a saved roster…</option>'
+      + Object.keys(state.accountState.rosters || {}).sort((a, b) => a.localeCompare(b))
+        .map(name => `<option value="${escAttr(name)}">${esc(name)}</option>`).join('');
+    if (state.accountState.rosters?.[state.selectedRoster]) roster.value = state.selectedRoster;
+  }
+  if (focusAccountId && focusControl) queueMicrotask(() => {
+    const row = [...list.querySelectorAll('.account-row')]
+      .find(candidate => candidate.dataset.accountId === focusAccountId);
+    row?.querySelector(`[data-account-control="${focusControl}"]`)?.focus();
+  });
+}
+
+async function persistAccountState() {
+  const response = await fetchWithTimeout('/api/accounts/state', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      active_account_ids: state.accountState.active_account_ids,
+      rosters: state.accountState.rosters || {},
+      caption_defaults: state.accountState.caption_defaults || {},
+    }),
+  });
+  await handleFetchError(response);
+  const data = await response.json();
+  state.accountState = data.account_state;
+  state.accountStateError = '';
+}
+
+async function applyActiveAccounts(ids) {
+  const assignedProfiles = state.accountState.device_profiles || {};
+  const newInstagramAccounts = ids.filter(id => {
+    const account = state.availableAccounts.find(candidate => candidate.slot === id);
+    return account?.instagram_device_required && assignedProfiles[id] == null;
+  });
+  if (Object.keys(assignedProfiles).length + newInstagramAccounts.length > state.deviceProfileCapacity) {
+    alert(`Only ${state.deviceProfileCapacity} distinct Instagram device profiles are available. TikTok-only accounts do not use one.`);
+    renderAccounts();
+    return false;
+  }
+  const oldIds = currentActiveIds();
+  const removed = oldIds.filter(id => !ids.includes(id));
+  const drafts = removed.filter(id => {
+    const draft = state.slots[id];
+    return draft && (draft.file || draft.filename || draft.caption.trim());
+  });
+  if (drafts.length) {
+    const names = drafts.map(id => `${state.availableAccounts.find(a => a.slot === id)?.name || id} [${id}]`);
+    if (!confirm(`Switching accounts will discard the current browser draft for: ${names.join(', ')}. Continue?`)) {
+      renderAccounts();
+      return false;
+    }
+  }
+  const previous = [...state.accountState.active_account_ids];
+  state.accountState.active_account_ids = [...ids];
+  try {
+    await persistAccountState();
+  } catch (error) {
+    state.accountState.active_account_ids = previous;
+    alert(`Account update failed: ${error.message}`);
+    renderAccounts();
+    return false;
+  }
+  for (const id of removed) {
+    clearSlotPreview(state.slots[id]);
+    delete state.slots[id];
+  }
+  state.accounts = ids.map(id => {
+    const account = state.availableAccounts.find(candidate => candidate.slot === id);
+    return account && { slot: account.slot, account_id: account.account_id, name: account.name };
+  }).filter(Boolean);
+  state.sessions = Object.fromEntries(ids.map(id => {
+    const account = state.availableAccounts.find(candidate => candidate.slot === id);
+    return [id, account?.sessions || {}];
+  }));
+  for (const account of state.accounts) {
+    const draft = state.slots[account.slot] || (state.slots[account.slot] = emptySlot());
+    if (!draft.style) draft.style = state.accountState.caption_defaults?.[account.slot]
+      || state.defaultCaptionStyle;
+  }
+  renderSlots();
+  renderSessionStrip();
+  renderAccounts();
+  updateButtons();
+  return true;
+}
+
+function toggleAccount(accountId, checked) {
+  const ids = currentActiveIds();
+  const next = checked ? [...ids, accountId] : ids.filter(id => id !== accountId);
+  applyActiveAccounts(next);
+}
+
+function moveAccount(accountId, delta) {
+  const ids = currentActiveIds();
+  const from = ids.indexOf(accountId), to = from + delta;
+  if (from < 0 || to < 0 || to >= ids.length) return;
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  applyActiveAccounts(ids);
+}
+
+async function setCaptionDefault(accountId, style) {
+  const previous = state.accountState.caption_defaults?.[accountId];
+  state.accountState.caption_defaults ||= {};
+  state.accountState.caption_defaults[accountId] = style;
+  try {
+    await persistAccountState();
+    if (state.slots[accountId] && !state.slots[accountId].filename && !state.slots[accountId].caption) {
+      state.slots[accountId].style = style;
+      if (state.accounts.some(a => a.slot === accountId)) renderSlots();
+    }
+  } catch (error) {
+    if (previous) state.accountState.caption_defaults[accountId] = previous;
+    else delete state.accountState.caption_defaults[accountId];
+    alert(`Caption default was not saved: ${error.message}`);
+    renderAccounts();
+  }
+}
+
+async function saveRoster() {
+  const name = el('rosterName').value.trim();
+  if (!name) { alert('Enter a roster name first.'); return; }
+  state.accountState.rosters ||= {};
+  const previous = state.accountState.rosters[name];
+  state.accountState.rosters[name] = currentActiveIds();
+  try { await persistAccountState(); state.selectedRoster = name; renderAccounts(); }
+  catch (error) {
+    if (previous) state.accountState.rosters[name] = previous;
+    else delete state.accountState.rosters[name];
+    alert(`Roster was not saved: ${error.message}`); renderAccounts();
+  }
+}
+
+async function selectRoster(name) {
+  if (!name) { state.selectedRoster = ''; return; }
+  const previous = state.selectedRoster;
+  const applied = await applyActiveAccounts([...(state.accountState.rosters?.[name] || [])]);
+  state.selectedRoster = applied ? name : previous;
+  renderAccounts();
+}
+
+async function renameRoster() {
+  const oldName = el('rosterSelect').value;
+  const newName = el('rosterName').value.trim();
+  if (!oldName || !newName) { alert('Choose a roster and enter its new name.'); return; }
+  const rosters = state.accountState.rosters;
+  const previous = JSON.parse(JSON.stringify(rosters));
+  rosters[newName] = rosters[oldName];
+  if (newName !== oldName) delete rosters[oldName];
+  try { await persistAccountState(); state.selectedRoster = newName; renderAccounts(); }
+  catch (error) {
+    state.accountState.rosters = previous;
+    alert(`Roster was not renamed: ${error.message}`); renderAccounts();
+  }
+}
+
+async function deleteRoster() {
+  const name = el('rosterSelect').value;
+  if (!name || !confirm(`Delete saved roster “${name}”? Current Review accounts will not change.`)) return;
+  const deleted = state.accountState.rosters[name];
+  delete state.accountState.rosters[name];
+  try { await persistAccountState(); state.selectedRoster = ''; renderAccounts(); }
+  catch (error) {
+    state.accountState.rosters[name] = deleted;
+    alert(`Roster was not deleted: ${error.message}`); renderAccounts();
+  }
+}
+
+function targetSummary(action) {
+  const targets = buildSlotsPayload().slots.map(slot => {
+    const account = state.accounts.find(candidate => candidate.slot === slot.slot);
+    const sessions = state.sessions?.[slot.slot];
+    const platforms = state.postMode === 'browser' && sessions
+      ? [sessions.instagram && 'Instagram', sessions.tiktok && 'TikTok'].filter(Boolean)
+      : ['Instagram', 'TikTok'];
+    return `${account?.name || slot.slot} [${slot.slot}] (${platforms.length ? platforms.join(' + ') : 'no saved Instagram or TikTok session'})`;
+  });
+  return targets.length
+    ? `${action} for exactly: ${targets.join('; ')}. Continue?`
+    : `No complete account drafts are ready to ${action.toLowerCase()}.`;
+}
+
+function confirmTargets(action) {
+  const payload = buildSlotsPayload();
+  return payload.slots.length > 0 && confirm(targetSummary(action));
+}
+
+function fmtBytes(bytes) {
+  if (!Number.isFinite(bytes)) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function loadStats() {
+  const panel = el('statsPanel');
+  panel.innerHTML = '<div class="history-empty">Loading local totals…</div>';
+  try {
+    const response = await fetchWithTimeout('/api/stats');
+    await handleFetchError(response);
+    const stats = await response.json();
+    const cards = [
+      ['Confirmed platform posts', stats.confirmed_platform_posts],
+      ['Content items attempted', stats.content_items_attempted],
+      ['Unconfirmed outcomes', stats.unconfirmed_platform_outcomes],
+      ['Failed outcomes', stats.failed_platform_outcomes],
+      ['Skipped outcomes', stats.skipped_platform_outcomes],
+      ['Unique accounts used', stats.unique_accounts_used],
+      ['Manual executions', stats.manual_executions],
+      ['Scheduled executions', stats.scheduled_executions],
+      ['Uploaded media now', fmtBytes(stats.current_uploaded_media_bytes)],
+      ['Retained queue media now', fmtBytes(stats.current_retained_queue_media_bytes)],
+      ['First recorded activity', stats.first_recorded_activity ? fmtHistoryTime(stats.first_recorded_activity) : '—'],
+      ['Most recent activity', stats.most_recent_recorded_activity ? fmtHistoryTime(stats.most_recent_recorded_activity) : '—'],
+      ['Cumulative media', fmtBytes(stats.tracked_media_bytes), 'Since tracking began; older rows have no invented size.'],
+    ];
+    panel.innerHTML = cards.map(([label, value, note]) => `<div class="stat-card">
+      <span class="stat-label">${esc(label)}</span><span class="stat-value">${esc(value)}</span>
+      ${note ? `<div class="stat-note">${esc(note)}</div>` : ''}</div>`).join('');
+  } catch (error) {
+    panel.innerHTML = `<div class="history-empty">Could not load Stats: ${esc(error.message)}</div>`;
+  }
+}
+
 // History rows are written as UTC by both writers (Phase 2 audit, finding #2).
 // Render them in the viewer's own timezone. Rows written before that fix are
 // naive local time, and JS parses an offset-less timestamp as local, so they
@@ -1837,8 +2254,8 @@ async function toggleHistory() {
     } else {
       const rows = d.entries.map(en => {
         const time = esc(fmtHistoryTime(en.ts));
-        const igCell = statusCell(classifyPlatform('IG', en.ig_post_id, en.errors));
-        const ttCell = statusCell(classifyPlatform('TT', en.tt_post_id, en.errors));
+        const igCell = statusCell(en.outcomes?.instagram || classifyPlatform('IG', en.ig_post_id, en.errors));
+        const ttCell = statusCell(en.outcomes?.tiktok || classifyPlatform('TT', en.tt_post_id, en.errors));
         const mode = en.post_mode !== 'browser'
           ? `<span class="history-mode">${esc(en.post_mode)}</span>` : '';
         const sched = en.scheduled
@@ -1930,6 +2347,7 @@ function renderProgress(p) {
 }
 
 async function postAll() {
+  if (!confirmTargets('Post All')) return;
   const btn = el('btnPost');
   btn.disabled = true;
   btn.textContent = 'Posting...';
@@ -2082,6 +2500,7 @@ function toggleScheduleRow() {
 async function scheduleAll() {
   const input = el('scheduleTime');
   if (!input.value) { alert('Pick a date and time first.'); return; }
+  if (!confirmTargets('Confirm Schedule')) return;
 
   const fireTime = new Date(input.value).toISOString();
 
@@ -2316,6 +2735,8 @@ async function cancelQueueBatch(batchId) {
 const VIEW_TITLES = {
   localmedia: 'Local Media',
   review: 'Review',
+  accounts: 'Accounts',
+  stats: 'Stats',
   queue: 'Queue',
   history: 'History',
   help: 'Help',
@@ -2355,6 +2776,8 @@ function navTo(view) {
     if (view === 'history' && !shown) toggleHistory();
     else if (leavingHistory && shown) toggleHistory();
   }
+  if (view === 'accounts') renderAccounts();
+  if (view === 'stats') loadStats();
 
   window.scrollTo(0, 0);
 }

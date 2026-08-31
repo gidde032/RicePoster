@@ -19,19 +19,12 @@ persisting a random choice to disk: it survives the session directory being
 cleared or the profile being rebuilt, and there is no second source of
 truth to fall out of sync.
 
-Assignment is **positional** — a slot's index in the configured slot list
-selects its viewport. The obvious alternative, hashing the slot id, was
-tried first and rejected: with a 5-entry table the default A/B/C config
-collided, putting B and C on an identical viewport. That silently defeats
-the entire purpose of the fix, since the whole point is that the accounts
-must not look like one device. Positional assignment is collision-free by
-construction for any slot count up to `len(VIEWPORTS)`.
-
-The cost of positional assignment is that reordering `ACCOUNT_SLOTS` in
-credentials.env reassigns devices. That is a deliberate, rare config action
-rather than something that happens on every restart, so it is the better
-trade — but it is a real edge, and renaming or reordering slots should be
-treated as giving those accounts new hardware.
+Assignment is persisted per durable account ID in the versioned local account
+state. Reordering or switching rosters therefore does not change hardware.
+Before that state exists, configured `ACCOUNT_SLOTS` retain the historical
+collision-free positional mapping; an ad-hoc unconfigured session-manager ID
+retains the stable-hash fallback. Once a state file exists, malformed or
+colliding assignments fail closed rather than silently falling back.
 
 Scope: Instagram only. TikTok's forced 1280x900 viewport is deliberately
 left alone — TikTok has shown no detection problems, so there is nothing
@@ -40,7 +33,10 @@ concern; it is not a uniformity goal to be applied for its own sake.
 """
 
 import hashlib
+import json
 
+from backend import config
+from backend.account_state import SCHEMA_VERSION as ACCOUNT_STATE_SCHEMA_VERSION
 from backend.config import SLOT_IDS
 
 # Height of the macOS Chrome window furniture (tab strip + toolbar) that sits
@@ -60,10 +56,9 @@ CHROME_HEIGHT_PX = 111
 # self-contradictory-spoof failure mode. The 1080p entry is an external
 # monitor, where 1 is correct and adds realistic variety.
 #
-# Do not reorder or remove entries casually: the index is derived from the
-# slot id, so changing this list reassigns slots to different devices, which
-# is the run-to-run instability described above. Appending is safe for
-# existing slots only if the length changes — see _index_for_slot.
+# Do not reorder or remove entries casually: persisted assignments store the
+# numeric index. Appending is safe; changing an existing index changes the
+# device for every account assigned to it.
 # `kind` is not decoration: it is what makes the Retina rule checkable. A
 # laptop panel at ratio 1 is a contradiction, an external panel at ratio 1 is
 # ordinary, and the two are not distinguishable by size alone — a 1920-wide
@@ -124,9 +119,8 @@ _validate_capacity(SLOT_IDS)
 def _index_for_slot(slot: str) -> int:
     """Map a slot id to a stable index into VIEWPORTS.
 
-    Positional where possible: a configured slot's position in SLOT_IDS is
-    its index, which guarantees distinct viewports for every configured slot
-    up to len(VIEWPORTS).
+    Persisted local assignment first. Before local account state exists, a
+    configured slot's position in SLOT_IDS is its compatibility index.
 
     A slot not present in SLOT_IDS (an ad-hoc session_manager invocation, a
     test fixture) falls back to a hash of the id. That fallback can collide,
@@ -136,6 +130,33 @@ def _index_for_slot(slot: str) -> int:
     interpreter runs, which would make the device change on every restart —
     exactly the failure this module exists to avoid.
     """
+    if config.ACCOUNT_STATE_FILE.exists():
+        try:
+            raw = json.loads(config.ACCOUNT_STATE_FILE.read_text())
+            profiles = raw.get("device_profiles")
+            if not isinstance(profiles, dict):
+                raise ValueError("device_profiles must be an object")
+            values = list(profiles.values())
+            if any(
+                not isinstance(value, int) or isinstance(value, bool)
+                or not 0 <= value < len(VIEWPORTS)
+                for value in values
+            ) or len(values) != len(set(values)):
+                raise ValueError("device profile assignments are invalid or collide")
+            if raw.get("schema_version") != ACCOUNT_STATE_SCHEMA_VERSION:
+                raise ValueError("account state schema is missing or unsupported")
+            if not isinstance(raw.get("active_account_ids"), list):
+                raise ValueError("active_account_ids must be an ordered list")
+            if slot in profiles:
+                return profiles[slot]
+            if slot not in SLOT_IDS:
+                raise ValueError(f"account {slot!r} has no stable device assignment")
+            legacy_index = SLOT_IDS.index(slot)
+            if legacy_index in values:
+                raise ValueError(f"account {slot!r} would collide with a saved device assignment")
+            return legacy_index
+        except (OSError, json.JSONDecodeError, TypeError, AttributeError) as exc:
+            raise ValueError(f"account state cannot provide a safe device assignment: {exc}") from exc
     if slot in SLOT_IDS:
         # No modulo here on purpose: _validate_capacity has already
         # guaranteed the index is in range, and a wrap would be a silent

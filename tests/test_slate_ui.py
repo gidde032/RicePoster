@@ -3,7 +3,7 @@
 The Slate redesign is a **pure visual redesign** of `frontend/index.html`: it
 preserves every control ID, handler, endpoint, payload, timeout, and safety
 behaviour while re-skinning the UI into the RiceClipper Slate visual language
-and reorganising it behind a five-destination sidebar.
+and reorganising it behind a seven-destination sidebar.
 
 `frontend/index.html` is one vanilla HTML/JS file with no build step, and the
 project forbids real-browser E2E tests inside the suite, so these are
@@ -38,7 +38,7 @@ DESIGN_LOGO = PROJECT_ROOT / "design" / "references" / "logo-ratified.png"
 # verifies the served logo is exactly the ratified bytes, and so any recreation
 # in SVG/CSS/glyph or an accidental re-export fails here.
 APPROVED_LOGO_SHA256 = (
-    "3251da8ee1ab3a4b46ba04d6d6286077478b91fb5080e468f903eea9e0e9800e"
+    "20ca1c50feb8a4f4e641b1d97da953518e8737b5815adf04a18ca3514ae3a1b5"
 )
 
 
@@ -141,25 +141,29 @@ def test_logo_is_served_directly_never_recreated():
     assert "<svg" not in brand, "the logo must not be recreated as inline SVG"
 
 
-# --- Global shell: five ratified destinations, Accounts/Settings deferred ----
-
-def test_sidebar_has_exactly_the_five_ratified_destinations():
+def test_favicon_uses_the_served_logo_asset():
     html = _html()
-    for view in ("localmedia", "review", "queue", "history", "help"):
+    assert '<link rel="icon" href="/static/logo-ratified.png" type="image/png">' in html
+
+
+# --- Global shell: seven destinations; Settings remains deferred -------------
+
+def test_sidebar_has_exactly_the_seven_ratified_destinations():
+    html = _html()
+    for view in ("localmedia", "review", "accounts", "stats", "queue", "history", "help"):
         assert f'id="nav-{view}"' in html, f"sidebar must have the {view} destination"
         assert f'id="view-{view}"' in html, f"the {view} view section must exist"
+    assert len(re.findall(r'class="nav-item"', html)) == 7
 
 
-def test_accounts_and_settings_are_deferred():
-    """Accounts and Settings are explicitly deferred: no nav item, view, or
-    handler for them may exist."""
+def test_accounts_and_stats_are_ratified_while_settings_remains_deferred():
     html = _html()
-    assert 'id="nav-accounts"' not in html
+    assert 'id="nav-accounts"' in html
+    assert 'id="nav-stats"' in html
     assert 'id="nav-settings"' not in html
-    assert 'id="view-accounts"' not in html
+    assert 'id="view-accounts"' in html
+    assert 'id="view-stats"' in html
     assert 'id="view-settings"' not in html
-    # Guard the sibling render's borrowed labels from leaking in as nav.
-    assert "navTo('accounts')" not in html
     assert "navTo('settings')" not in html
 
 
@@ -170,7 +174,7 @@ def test_review_is_the_default_destination():
     assert 'aria-current="page"' in review_nav
     review_view = re.search(r'id="view-review"[^>]*>', html).group(0)
     assert "hidden" not in review_view
-    for view in ("localmedia", "queue", "history", "help"):
+    for view in ("localmedia", "accounts", "stats", "queue", "history", "help"):
         section = re.search(rf'id="view-{view}"[^>]*>', html).group(0)
         assert "hidden" in section, f"{view} view must start hidden"
 
@@ -320,7 +324,7 @@ ENDPOINTS = [
     "/api/accounts", "/api/upload/", "/api/media-info", "/api/media/clear",
     "/api/generate-caption", "/api/pull-from-clipper", "/api/media/",
     "/api/post-progress", "/api/history", "/api/post", "/api/queue",
-    "/api/queue/media", "/api/queue/",
+    "/api/queue/media", "/api/queue/", "/api/accounts/state", "/api/stats",
 ]
 
 
@@ -500,7 +504,7 @@ def test_views_use_region_not_orphan_tabpanel_role():
     does not exist. Views are landmark regions instead."""
     html = _html()
     assert 'role="tabpanel"' not in html
-    assert html.count('class="view" role="region"') == 5
+    assert html.count('class="view" role="region"') == 7
 
 
 # --- R2-6 / R2-7 / R2-8: contrast, targets, dead CSS ------------------------

@@ -195,13 +195,13 @@ def test_post_all_notifies_failed_slot_and_summary(monkeypatch):
 
     bodies = [m["body"] for m in rec.sent]
     # Per-slot failure notification for B/TikTok:
-    assert any("Slot B TikTok: error" in b and "session expired" in b for b in bodies)
+    assert any("Account 2 TikTok: error" in b and "session expired" in b for b in bodies)
     # No per-slot notification for the fully-successful slot A:
-    assert not any("Slot A" in b for b in bodies)
+    assert not any("Account 1" in b for b in bodies)
     # Run summary, last, with the failed slot named:
     summary = rec.sent[-1]["body"]
     assert summary.startswith("1/2 posted, 1 failed")
-    assert "slot B TikTok" in summary
+    assert "account 2 TikTok" in summary
     assert "session expired" in summary
 
 
@@ -215,7 +215,7 @@ def test_post_all_notifies_unconfirmed_slot(monkeypatch):
     _run_post_all(monkeypatch, canned, rec)
 
     bodies = [m["body"] for m in rec.sent]
-    assert any("Slot A Instagram: unconfirmed" in b for b in bodies)
+    assert any("Account 1 Instagram: unconfirmed" in b for b in bodies)
 
 
 def test_post_all_all_success_summary(monkeypatch):
@@ -331,7 +331,7 @@ def test_skip_only_slot_produces_no_per_slot_push(monkeypatch):
 
     assert len(rec.sent) == 1  # summary only, no per-slot push
     summary = rec.sent[0]["body"]
-    assert summary == "1/1 posted, 1 skipped (no session: A IG)"
+    assert summary == "1/1 posted, 1 skipped (no session: account 1 IG)"
     assert "failed" not in summary
 
 
@@ -349,12 +349,27 @@ def test_summary_reports_skips_and_failures_distinctly(monkeypatch):
 
     summary = rec.sent[-1]["body"]
     assert summary.startswith("2/3 posted")
-    assert "1 failed: [slot B TikTok: session expired]" in summary
-    assert "1 skipped (no session: C IG)" in summary
+    assert "1 failed: [account 2 TikTok: session expired]" in summary
+    assert "1 skipped (no session: account 3 IG)" in summary
     # B is the only per-slot push (skip C silent, success A silent):
     per_slot = [m for m in rec.sent[:-1]]
-    assert all("Slot B" in m["body"] for m in per_slot)
+    assert all("Account 2" in m["body"] for m in per_slot)
     assert per_slot  # B did push
+
+
+def test_notifications_use_order_labels_not_private_account_ids(monkeypatch):
+    """Cold-review repair (MEDIUM): local folder IDs never leave through ntfy."""
+    private_id = "private-account-handle"
+    canned = {
+        private_id: PostResult(slot=private_id, errors=["TT post: upload failed"]),
+    }
+    rec = _RecordingNotifier()
+    _run_post_all(monkeypatch, canned, rec)
+
+    assert rec.sent
+    assert all(private_id not in message["title"] for message in rec.sent)
+    assert all(private_id not in message["body"] for message in rec.sent)
+    assert any("account 1" in message["body"].lower() for message in rec.sent)
 
 
 # --- review fixes: httpx timeout (finding 3, HIGH) --------------------------

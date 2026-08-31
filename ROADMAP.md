@@ -1,6 +1,6 @@
 # RicePoster Roadmap
 
-Updated 2026-08-27. GitHub Issues are the source of truth for open work; this
+Updated 2026-08-31. GitHub Issues are the source of truth for open work; this
 document records direction, priority horizons, and boundaries without
 duplicating issue bodies.
 
@@ -27,7 +27,15 @@ verified, and the `main` ruleset is enforced
 [#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
 remains and needs an approved live TikTok run before its PR leaves draft.
 
-### Approved discovery — Slate sibling interface
+### In review — account rosters and lightweight Stats
+
+The account-roster slice extends the ratified Slate interface with
+folder-discovered accounts, ordered saved rosters, local per-account caption
+defaults, immutable scheduled targets, stable Instagram device assignments,
+and database-free Stats. It has completed offline verification and is under
+review; it is not merged, released, deployed, or live-validated.
+
+### Completed discovery — Slate sibling interface
 
 RicePoster's next visual-design discovery will adapt RiceClipper's approved
 Slate theme into a matching sibling interface while preserving RicePoster's

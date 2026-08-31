@@ -475,10 +475,16 @@ class TestStartupSweep:
         assert len(overdue) == 0
 
     def test_interrupted_notification_sent(self, tmp_path):
-        batch, qf, _ = _make_batch(tmp_path, status="running")
+        private_id = "private-handle"
+        batch, qf, _ = _make_batch(
+            tmp_path, status="running", slot_ids=[private_id]
+        )
         notifier = _FakeNotifier()
         asyncio.run(startup_sweep(qf, notifier))
         assert any("interrupted" in s["title"] for s in notifier.sent)
+        bodies = " | ".join(s["body"] for s in notifier.sent)
+        assert "account 1" in bodies
+        assert private_id not in bodies
 
     def test_overdue_pending_returned(self, tmp_path):
         past = datetime(2020, 1, 1, tzinfo=timezone.utc)
@@ -575,6 +581,8 @@ class TestExecuteBatch:
         assert any("skipped" in s["title"] for s in notifier.sent)
         assert load_queue(qf) == [], "slot should still post and complete"
         assert hf.exists(), "history should be written for the posted slot"
+        assert all("account A" not in message["title"] for message in notifier.sent)
+        assert any("account 1" in message["title"] for message in notifier.sent)
 
     def test_both_platforms_expired_creates_skip_result(self, tmp_path):
         """Review fix #1+3: both platforms expired → slot fully skipped with

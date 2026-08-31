@@ -203,8 +203,7 @@ def session_exists(platform: str, slot: str) -> bool:
         # TikTok: check for cookie JSON first, then profile directory
         if tiktok_browser.has_cookie_session(slot):
             return True
-        session_dir = tiktok_browser.SESSIONS_DIR / slot
-        return session_dir.exists() and any(session_dir.iterdir())
+        return tiktok_browser.has_profile_session(slot)
 
 
 async def login_account(platform: str, slot: str):

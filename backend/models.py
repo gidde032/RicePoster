@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Accepted media kinds for caption generation. Previously unvalidated: an
 # unknown value reached generate_caption and shaped a prompt from nonsense
@@ -164,3 +164,11 @@ class RescheduleRequest(BaseModel):
     @classmethod
     def _fire_time_is_future(cls, v: datetime) -> datetime:
         return validate_future_fire_time(v)
+
+
+class AccountStateRequest(BaseModel):
+    """Complete local account-state update from the Accounts workspace."""
+
+    active_account_ids: list[str]
+    rosters: dict[str, list[str]] = Field(default_factory=dict)
+    caption_defaults: dict[str, str] = Field(default_factory=dict)

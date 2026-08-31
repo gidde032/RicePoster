@@ -239,6 +239,9 @@ class TestHistoryWriteFailureIsSurfaced:
     def test_terminal_batch_notifies_when_history_cannot_be_written(
             self, tmp_path):
         batch, qf, qmedia = _make_batch(tmp_path)
+        batch.slots[0].slot = "private-handle"
+        batch.slots[0].account_id = "private-handle"
+        save_queue([batch], qf)
         notifier = _FakeNotifier()
         # A directory where the history file should be: open(..., "a") raises.
         hf = tmp_path / "history_is_a_dir"
@@ -251,6 +254,8 @@ class TestHistoryWriteFailureIsSurfaced:
                    if m["title"] == _HISTORY_FAIL_TITLE)
         assert msg["priority"] == "high"
         assert batch.id[:8] in msg["body"]
+        assert "account 1" in msg["body"]
+        assert "private-handle" not in msg["body"]
 
     def test_evidence_survives_a_failed_history_write(self, tmp_path):
         """The queue row and the media snapshot are the only remaining record,
@@ -370,6 +375,28 @@ class TestHistoryWriteFailureIsSurfaced:
 
         assert _HISTORY_FAIL_TITLE not in notifier.titles()
         assert load_queue(qf) == [], "a recorded batch is pruned as before"
+
+    def test_prune_failure_does_not_duplicate_history_or_leave_batch_runnable(
+            self, tmp_path, monkeypatch):
+        """A cleanup error happens after durable history and must not enter the
+        crash recorder, which would append the same execution a second time."""
+        batch, qf, qmedia = _make_batch(tmp_path)
+        notifier = _FakeNotifier()
+        history = tmp_path / "history.jsonl"
+        monkeypatch.setattr(
+            scheduler,
+            "_prune_batch",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("busy")),
+        )
+
+        _run_batch(batch, qf, qmedia, history, notifier)
+
+        assert len(history.read_text().splitlines()) == len(batch.slots)
+        remaining = load_queue(qf)
+        assert len(remaining) == 1
+        assert remaining[0].status == "done"
+        assert (qmedia / batch.id).is_dir()
+        assert "RicePoster: scheduled batch cleanup incomplete" in notifier.titles()
 
     def test_notifier_raising_on_that_push_cannot_kill_the_scheduler(
             self, tmp_path):

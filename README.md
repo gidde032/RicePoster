@@ -1,8 +1,8 @@
 # RicePoster
 
-A local browser-automation tool that posts one media file with an AI-generated
-caption to three Instagram accounts and three TikTok accounts (slots A, B, C)
-in one click. FastAPI serves a single-page UI; Playwright drives real Chrome
+A local browser-automation tool that posts unique media and AI-generated
+captions to an ordered roster of saved Instagram and TikTok accounts. FastAPI
+serves a single-page UI; Playwright drives real Chrome
 sessions to do the posting; the Anthropic API writes captions in a consistent
 house style. Runs entirely on your machine — nothing is deployed.
 
@@ -42,10 +42,10 @@ See `credentials.env.example` for the full template. The essentials:
 | Variable | Meaning |
 | --- | --- |
 | `ANTHROPIC_API_KEY` | For caption generation |
-| `IG_ACCOUNT_{A,B,C}_NAME` | Display names shown in the UI |
+| `IG_ACCOUNT_{ID}_NAME` | Optional compatibility display name; folder-discovered accounts default to their durable directory name |
 | `POST_MODE` | `mock` (fake everything), `browser` (Playwright — the real workflow), `api` (official APIs; incomplete, needs tokens/dev access) |
 | `HEADLESS` | `true` = browsers hidden, `false` = visible. **Not only a debugging switch — it is an Instagram detection setting.** Headless Chrome reports `HeadlessChrome/...` in its user agent while the client hints beside it say `Google Chrome`, and a browser contradicting itself about its own identity is a stronger signal than either value alone. It also reports `colorDepth` 24 instead of a real Mac's 30. Neither is fixable in code. Measure with `python tools/probe_fingerprint.py` |
-| `ACCOUNT_SLOTS` | Which slots exist, in order (default `A,B,C`). Each slot needs its own login and its own entry in `device_identity.DISPLAYS` |
+| `ACCOUNT_SLOTS` | Compatibility roster when folder discovery is not used (default `A,B,C`). Values remain durable account IDs; every active Instagram account needs a distinct entry in `device_identity.DISPLAYS` |
 | `LOG_LEVEL` | Console verbosity (default `INFO`). `INFO` keeps the full browser-automation narration; `WARNING` keeps only degraded and failed states, which suits unattended scheduled batches. An unrecognised value is reported at startup and falls back to `INFO`. Note that `session_manager`'s status and health-check reports are plain CLI output and are never suppressed by this setting |
 | `NOTIFY_SERVICE` | `none` (default) or `ntfy` — push notifications for failures and run summaries |
 | `NTFY_TOPIC` / `NTFY_SERVER` | ntfy topic (treat it as a secret — it is a bearer token) and server, default `https://ntfy.sh` |
@@ -67,7 +67,25 @@ automated traffic further.
 
 ## Session login (browser mode)
 
-Each account needs a saved login before it can post:
+Each account needs a saved login before it can post. The preferred local layout
+uses the filesystem-safe folder name as both durable account ID and default UI
+name:
+
+```text
+sessions/
+  instagram/account-one/
+  tiktok/account-one/cookies.json
+  .account-state.json
+```
+
+The local state file stores only ordered active IDs, named saved rosters,
+per-account caption defaults, stable Instagram device assignments, and a schema
+version. It never stores cookies, credentials, captions, queue contents, or
+media. Existing `ACCOUNT_SLOTS`, Instagram/TikTok profile directories, and
+legacy `sessions/tiktok/{SLOT}_cookies.json` files remain readable without an
+automatic migration.
+
+Session-manager commands remain available for compatibility-configured IDs:
 
 ```bash
 python -m backend.session_manager login all            # every slot × platform
@@ -82,7 +100,7 @@ A browser window opens; log in manually, then press Enter to save — or type
 `abort` + Enter to discard a failed attempt. Instagram sessions are persistent
 Chrome profiles under `sessions/instagram/`. TikTok prefers exported cookies:
 use the Cookie-Editor extension in a logged-in real browser, export JSON, and
-save it as `sessions/tiktok/{SLOT}_cookies.json`. Exported cookies last roughly
+save it as `sessions/tiktok/{ACCOUNT_ID}/cookies.json`. Exported cookies last roughly
 30–60 days; when TikTok posts start failing with "session expired," re-export.
 
 ## Running
@@ -97,7 +115,8 @@ can post to real accounts. Don't expose it to the network.
 
 ## Posting workflow
 
-1. Open the UI; each account slot shows its session status.
+1. Open **Accounts** to choose or load the exact ordered roster for Review;
+   each account shows its saved-session availability and local caption default.
 2. Upload a media file per slot (each slot gets unique media).
 3. Pick a **caption style** per slot (defaults to Generic / minimal) and optionally
    type a topic/description, then **Generate Captions** — fills every slot
@@ -107,7 +126,8 @@ can post to real accounts. Don't expose it to the network.
    caption (the old one is sent as an anti-repeat reference). **Undo** swaps
    back if the previous one was better.
 5. Review/edit captions (slots without both media and a caption are skipped).
-6. **Post All** — slots post sequentially, one browser at a time. The status
+6. **Post All** — confirm the exact named account/platform targets; accounts
+   then post sequentially, one browser at a time. The status
    panel updates live with which slot/platform is currently posting.
 7. Final per-slot status: ✓ confirmed, ⚠ **unconfirmed** (the success element
    never appeared — check the platform before reposting, the post may have
@@ -116,11 +136,17 @@ can post to real accounts. Don't expose it to the network.
 **Pull from Clipper** (steps 2–3 in one click): if you use
 [RiceClipper](https://github.com/gidde032/RiceClipper) to render captioned
 clips, it writes finished batches into a shared handoff folder (`HANDOFF_DIR`).
-**Pull from Clipper** ingests the oldest batch — assigning clips to slots in
-order and staging their media — then shows a playable preview per slot and
-writes a `CLIPPER_INGEST_STYLE` caption for each, grounded on a frame from the
-clip plus its transcript (the same caption path a manual upload uses). You land
-at step 5 (review captions → Post All). It never posts or schedules on its own.
+**Pull from Clipper** ingests the oldest batch — assigning clips to the current
+active account IDs in roster order and staging their media — then shows a
+playable preview per account and writes a `CLIPPER_INGEST_STYLE` caption for
+each, grounded on a frame from the clip plus its transcript (the same caption
+path a manual upload uses). Before the ready batch leaves the producer queue,
+RicePoster writes a receipt with its frozen targets and file hashes, then moves
+the complete source batch into `HANDOFF_DIR/.riceposter-consumed/`. A browser
+failure or lost response replays that same unacknowledged receipt; changing to
+a roster that would retarget it is rejected. Browser acknowledgement marks the
+receipt applied but does not delete the archive. You land at step 5 (review
+captions → Post All). Pull never posts or schedules on its own.
 
 Also in the UI: an upload progress bar for large videos, a caption character
 counter (2,200 limit), session dots on each slot card, **New Run** to clear
@@ -129,6 +155,20 @@ library (your original files are untouched), a **History** panel showing
 recent runs (backed by gitignored `history.jsonl`), and a clickable
 **Headless/Visible** badge that toggles browser visibility for this
 session's runs without touching credentials.env.
+
+**Saved rosters and immutable queued targets.** Accounts can be activated,
+deactivated, reordered, and saved under generic local names such as `daily
+three` or `single account`. Roster changes affect current and future drafts
+only. A scheduled batch remains bound to the exact account IDs it was created
+with. Per-account caption defaults also stay local and follow the account, not
+the roster. Instagram device-profile capacity applies only to accounts with an
+Instagram profile directory; TikTok-only accounts remain selectable and do not
+consume one of those persistent browser identities.
+
+**Stats** is read-only and database-free. It aggregates local history and the
+current media footprint while keeping confirmed, unconfirmed, failed, and
+skipped outcomes separate. Cumulative media bytes are explicitly labeled
+**since tracking began** because older history rows have no byte count.
 
 Only one post run can be active at a time; a second attempt gets a clear
 "already in progress" message.

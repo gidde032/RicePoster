@@ -217,8 +217,8 @@ def tmp_sessions(monkeypatch, tmp_path):
 
     ig = tmp_path / "sessions" / "instagram"
     tt = tmp_path / "sessions" / "tiktok"
-    ig.mkdir(parents=True)
-    tt.mkdir(parents=True)
+    ig.mkdir(parents=True, exist_ok=True)
+    tt.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(instagram_browser, "SESSIONS_DIR", ig)
     monkeypatch.setattr(tiktok_browser, "SESSIONS_DIR", tt)
     return {"instagram": ig, "tiktok": tt}
@@ -300,11 +300,15 @@ def tmp_queue_paths(monkeypatch, tmp_path):
     function in that module resolves its default from the module-level name at
     call time, which is also the pattern the per-test patches already use.
     """
-    from backend import queue as queue_mod
+    from backend import main, queue as queue_mod
 
     monkeypatch.setattr(queue_mod, "QUEUE_FILE", tmp_path / "queue.jsonl")
     monkeypatch.setattr(queue_mod, "HISTORY_FILE", tmp_path / "history.jsonl")
     monkeypatch.setattr(queue_mod, "QUEUE_MEDIA_DIR", tmp_path / "queue_media")
+    monkeypatch.setattr(main, "QUEUE_MEDIA_DIR", tmp_path / "queue_media")
+    stats_media = tmp_path / "stats_media"
+    stats_media.mkdir()
+    monkeypatch.setattr(main, "MEDIA_DIR", stats_media)
     # The malformed-line report channel (#35) is module-level state that
     # survives across tests in one process: a prior test's bad line would
     # otherwise either block an identical bad line in this test from reporting
@@ -319,10 +323,10 @@ def tmp_handoff_paths(monkeypatch, tmp_path):
     """Redirect the RiceClipper handoff root and the pickup's media dir to temp.
 
     Autouse and unconditional, for the same reason as `tmp_queue_paths` but with
-    the same worst-case: `handoff_pickup.ingest_oldest` **deletes** a batch
-    directory (`shutil.rmtree`) on success and writes into `MEDIA_DIR`. An
-    unpatched test that reached the pickup would scan and delete the
-    maintainer's real `~/riceclipper-handoff` and write into the real `media/`.
+    the same live-data boundary: `handoff_pickup.ingest_oldest` moves a producer
+    batch into its retained archive and writes into `MEDIA_DIR`. An unpatched
+    test that reached the pickup would mutate the maintainer's real
+    `~/riceclipper-handoff` and write into the real `media/`.
     `handoff_pickup` resolves both from its own module-level names at call time,
     so patching them here is sufficient.
     """
@@ -358,11 +362,18 @@ def tmp_ig_sessions_dir(monkeypatch, tmp_path):
     autouse and unconditional. Tests exercising the label chain set their own
     directory, which wins over this fixture.
     """
-    from backend import config
+    from backend import config, instagram_browser, tiktok_browser
 
-    labels = tmp_path / "ig_sessions"
-    labels.mkdir()
+    root = tmp_path / "sessions"
+    labels = root / "instagram"
+    tiktok = root / "tiktok"
+    labels.mkdir(parents=True)
+    tiktok.mkdir()
     monkeypatch.setattr(config, "IG_SESSIONS_DIR", labels)
+    monkeypatch.setattr(config, "TT_SESSIONS_DIR", tiktok)
+    monkeypatch.setattr(config, "ACCOUNT_STATE_FILE", root / ".account-state.json")
+    monkeypatch.setattr(instagram_browser, "SESSIONS_DIR", labels)
+    monkeypatch.setattr(tiktok_browser, "SESSIONS_DIR", tiktok)
 
 
 # ---------------------------------------------------------------------------

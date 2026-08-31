@@ -34,6 +34,57 @@ def test_tiktok_tiny_cookie_file_ignored(tmp_sessions):
     assert session_manager.session_exists("tiktok", "A") is False
 
 
+def test_tiktok_valid_legacy_cookie_wins_over_broken_preferred(tmp_sessions):
+    preferred = tmp_sessions["tiktok"] / "A" / "cookies.json"
+    preferred.parent.mkdir()
+    preferred.write_text("[]")
+    legacy = tmp_sessions["tiktok"] / "A_cookies.json"
+    legacy.write_text(json.dumps([{"name": "sessionid", "value": "x" * 20}]))
+
+    assert tiktok_browser.has_cookie_session("A") is True
+    assert tiktok_browser._cookies_file("A") == legacy
+
+    preferred.write_text(json.dumps([{"missing": "name and value"}]))
+    assert tiktok_browser.has_cookie_session("A") is True
+    assert tiktok_browser._cookies_file("A") == legacy
+
+    preferred.write_text("{malformed cookie export")
+    assert tiktok_browser.has_cookie_session("A") is True
+    assert tiktok_browser._cookies_file("A") == legacy
+
+
+def test_tiktok_cookie_symlinks_are_not_usable_sessions(tmp_sessions, tmp_path):
+    outside = tmp_path / "outside-cookies.json"
+    outside.write_text(json.dumps([{"name": "sessionid", "value": "x" * 20}]))
+    preferred = tmp_sessions["tiktok"] / "A" / "cookies.json"
+    preferred.parent.mkdir()
+    preferred.symlink_to(outside)
+    legacy = tmp_sessions["tiktok"] / "B_cookies.json"
+    legacy.symlink_to(outside)
+
+    assert tiktok_browser.has_cookie_session("A") is False
+    assert tiktok_browser.has_cookie_session("B") is False
+    assert session_manager.session_exists("tiktok", "A") is False
+    assert session_manager.session_exists("tiktok", "B") is False
+
+
+def test_tiktok_invalid_preferred_cookie_alone_is_not_a_saved_profile(tmp_sessions):
+    preferred = tmp_sessions["tiktok"] / "A" / "cookies.json"
+    preferred.parent.mkdir()
+    preferred.write_text("[]")
+
+    assert tiktok_browser.has_cookie_session("A") is False
+    assert session_manager.session_exists("tiktok", "A") is False
+
+    preferred.write_text(json.dumps([{"missing": "name and value"}]))
+    assert tiktok_browser.has_cookie_session("A") is False
+    assert session_manager.session_exists("tiktok", "A") is False
+
+    preferred.write_text("{malformed cookie export")
+    assert tiktok_browser.has_cookie_session("A") is False
+    assert session_manager.session_exists("tiktok", "A") is False
+
+
 def test_tiktok_profile_dir_counts_as_session(tmp_sessions):
     d = tmp_sessions["tiktok"] / "B"
     d.mkdir()
