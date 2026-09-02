@@ -1,6 +1,6 @@
 # RicePoster Roadmap
 
-Updated 2026-08-31. GitHub Issues are the source of truth for open work; this
+Updated 2026-09-01. GitHub Issues are the source of truth for open work; this
 document records direction, priority horizons, and boundaries without
 duplicating issue bodies.
 
@@ -24,27 +24,27 @@ screenshot purge ([#60](https://github.com/gidde032/RicePoster/issues/60)) is
 verified, and the `main` ruleset is enforced
 ([#72](https://github.com/gidde032/RicePoster/issues/72)).
 
-[#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
-remains and needs an approved live TikTok run before its PR leaves draft.
+No follow-on implementation is currently authorized. Select any future work
+explicitly from the currently open GitHub Issues. Release, deployment,
+live-session migration, and live validation remain separate, unauthorized
+boundaries.
 
-### In review — account rosters and lightweight Stats
+### Merged via PR #80 — account rosters and lightweight Stats
 
 The account-roster slice extends the ratified Slate interface with
 folder-discovered accounts, ordered saved rosters, local per-account caption
 defaults, immutable scheduled targets, stable Instagram device assignments,
-and database-free Stats. It has completed offline verification and is under
-review; it is not merged, released, deployed, or live-validated.
+and database-free Stats. It completed offline verification and merged into
+`main` via PR #80 on 2026-08-31; it remains unreleased, undeployed, and not
+live-validated.
 
-### Completed discovery — Slate sibling interface
+### Delivered — Slate sibling interface
 
-RicePoster's next visual-design discovery will adapt RiceClipper's approved
-Slate theme into a matching sibling interface while preserving RicePoster's
-daily-driver workflow and every existing control. Discovery must compare at
-least two materially different treatments of each representative UI state and
-several symbol-only RicePoster logo directions before implementation is
-ratified. Neutral Slate chrome is shared; green, amber, and red remain reserved
-for real operational status. Detailed scope and acceptance criteria belong in
-the owning GitHub Issue once a mockup direction is selected.
+RicePoster now uses the delivered RiceClipper Slate sibling interface across
+its existing workflow, preserving the existing controls, handlers, endpoints,
+payloads, and safety behavior. The visual redesign merged via PR #79; it
+remains unreleased, undeployed, and not live-validated. Neutral Slate chrome
+is shared; green, amber, and red remain reserved for real operational status.
 
 ## Shipped milestones
 
@@ -92,37 +92,11 @@ was put in place. Completed by
 [issue #1](https://github.com/gidde032/RicePoster/issues/1) and merged through
 [pull request #25](https://github.com/gidde032/RicePoster/pull/25).
 
-## Next candidates
+## Future work
 
-No milestone beyond v1.0.0 is committed. Product candidates
-[#18](https://github.com/gidde032/RicePoster/issues/18)–[#21](https://github.com/gidde032/RicePoster/issues/21)
-are parked pending discovery; they were deliberately excluded from the
-tech-debt campaign, whose scope is debt and investigations only.
-
-## Later opportunities
-
-Durable but unselected ideas remain unmilestoned. This now includes the five
-read-only investigations (#3, #13, #15, #16, #17) and two follow-ups (#55,
-#57), which were pushed past the v0.4.0 release rather than held against it.
-
-- Scheduling and account behavior:
-  [#12](https://github.com/gidde032/RicePoster/issues/12),
-  [#16](https://github.com/gidde032/RicePoster/issues/16), and
-  [#21](https://github.com/gidde032/RicePoster/issues/21).
-- Offline diagnostics:
-  [#14](https://github.com/gidde032/RicePoster/issues/14),
-  [#15](https://github.com/gidde032/RicePoster/issues/15), and
-  [#17](https://github.com/gidde032/RicePoster/issues/17).
-- Caption and media workflow:
-  [#18](https://github.com/gidde032/RicePoster/issues/18),
-  [#19](https://github.com/gidde032/RicePoster/issues/19), and
-  [#20](https://github.com/gidde032/RicePoster/issues/20).
-- Trigger-based maintenance:
-  [#11](https://github.com/gidde032/RicePoster/issues/11),
-  [#13](https://github.com/gidde032/RicePoster/issues/13),
-  [#22](https://github.com/gidde032/RicePoster/issues/22),
-  [#23](https://github.com/gidde032/RicePoster/issues/23), and
-  [#24](https://github.com/gidde032/RicePoster/issues/24).
+No post-v1 milestone or candidate is selected or authorized. Current
+candidates live in the open GitHub Issues; selection requires Finn's explicit
+direction. This roadmap does not duplicate a volatile issue inventory.
 
 ## Deliberate non-goals
 
