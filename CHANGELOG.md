@@ -2,8 +2,8 @@
 
 ## [Unreleased]
 
-[#51](https://github.com/gidde032/RicePoster/issues/51) (TikTok fixed sleeps)
-is the only remaining v1.0.0 item; it needs an approved live TikTok run.
+This section contains changes merged into `main` that have not yet been
+published as a tagged release or GitHub Release.
 
 ### Added
 
