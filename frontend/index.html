@@ -885,7 +885,7 @@
         <button class="btn-generate" id="btnGenerate" disabled onclick="generateAll()">Generate Captions</button>
         <button class="btn-post" id="btnPost" disabled onclick="postAll()">Post All</button>
         <button class="btn-schedule" id="btnSchedule" disabled onclick="toggleScheduleRow()">Schedule</button>
-        <button class="btn-secondary" onclick="resetRun()">New Run</button>
+        <button class="btn-secondary" onclick="newRun()">New Run</button>
       </div>
 
       <div class="schedule-row" id="scheduleRow">
@@ -1421,6 +1421,21 @@ function hydrateSlotCard(slot) {
 // captions and clicks Post All.
 async function pullFromClipper() {
   const btn = elOpt('btnPullClipper');
+  // A pull overwrites active-roster slots positionally, discarding any unposted
+  // draft they hold (caption/media live only in the browser). Confirm first when a
+  // slot is at risk, mirroring the account-switch guard.
+  const activeIds = new Set(state.accounts.map(a => a.slot));
+  const atRisk = Object.entries(state.slots).filter(
+    ([slot, s]) => activeIds.has(slot) && (s.file || s.filename || (s.caption && s.caption.trim())),
+  );
+  if (
+    atRisk.length &&
+    !confirm(
+      `Pull a new batch? ${atRisk.length} slot(s) already hold an unposted draft that will be overwritten.`,
+    )
+  ) {
+    return;
+  }
   let stagedBatchId = '';
   let reviewApplied = false;
   if (btn) btn.disabled = true;
@@ -1902,6 +1917,25 @@ function updateCharCount(slot) {
 function autoGrow(el) {
   el.style.height = 'auto';
   el.style.height = Math.max(el.scrollHeight, 140) + 'px';
+}
+
+// "New Run" wipes every slot's caption, topic, and media, which live only in the
+// browser until you Post or Schedule. Confirm first when a slot holds unsaved work,
+// mirroring the account-switch (applyActiveAccounts) and clear-media guards. Called
+// only from the button; clearMedia() runs resetRun() directly after its own confirm.
+function newRun() {
+  const drafts = Object.values(state.slots).filter(
+    s => s.file || s.filename || (s.caption && s.caption.trim()),
+  );
+  if (
+    drafts.length &&
+    !confirm(
+      `Start a new run? This discards the current unposted captions and media in ${drafts.length} slot(s).`,
+    )
+  ) {
+    return;
+  }
+  resetRun();
 }
 
 function resetRun() {
