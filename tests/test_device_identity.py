@@ -47,6 +47,9 @@ def test_viewport_is_stable_across_processes():
     slot a different device on every server restart. Runs a fresh
     interpreter with an explicit non-default seed to prove stability."""
     code = (
+        "from pathlib import Path;"
+        "from backend import config;"
+        "config.ACCOUNT_STATE_FILE = Path('/nonexistent/.account-state.json');"
         "from backend.device_identity import viewport_for_slot;"
         "print(viewport_for_slot('A'))"
     )
