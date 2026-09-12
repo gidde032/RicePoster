@@ -177,6 +177,15 @@
 
   .header-badges { display: flex; gap: 8px; align-items: center; }
 
+  .topbar-logo {
+    display: none;
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 6px;
+    flex: 0 0 auto;
+  }
+
   /* Mode / headless / queue chips are chrome, so they stay neutral Slate greys —
      no blue/purple/cyan/gold. They carry an operational label, not a status. */
   .badge {
@@ -283,7 +292,14 @@
     color: var(--primary-text);
     min-width: 18px;
   }
-  .slot-account-id { color:var(--muted-grey); font-size:10px; overflow-wrap:anywhere; }
+  .slot-account-id {
+    color: var(--muted-grey);
+    font-size: 10px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .slot-trackers { display: flex; align-items: center; gap: 14px; }
   .tracker { display: inline-flex; align-items: center; gap: 5px; }
   .tracker .plat-ico { width: 17px; height: 17px; color: var(--rice-grey); flex: 0 0 auto; }
@@ -767,24 +783,31 @@
       position: static;
       height: auto;
       flex-direction: row;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
+      justify-content: center;
       gap: 4px;
-      padding: 12px 14px;
+      padding: 8px 14px;
+      border-right: none;
+      border-bottom: 1px solid var(--hairline);
     }
-    .brand { padding: 4px 8px; width: 100%; }
+    .brand { display: none; }
+    .sidebar nav { display: flex; flex-direction: row; gap: 4px; }
     .nav-group { display: none; }
     .nav-item { width: auto; min-width: 0; }
     .nav-item .nav-label { display: none; }
-    .nav-item[aria-current="page"] .nav-label { display: inline; }
+    .nav-item[aria-current="page"] .nav-label { display: none; }
+    .nav-item[aria-current="page"] { box-shadow: none; }
     .sidebar-foot { margin-top: 0; flex-direction: row; }
     .copyright { display: none; }
+    .topbar-logo { display: block; }
     .view { padding: 18px; }
     .actions { flex-wrap: wrap; }
     .actions button { flex: 1 1 140px; }
     .run-summary { gap: 14px; }
-    .topbar { padding: 12px 16px; flex-wrap: wrap; }
-    .topbar-right { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+    .topbar { padding: 12px 16px; flex-wrap: nowrap; gap: 10px; }
+    .breadcrumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar-right { flex-wrap: nowrap; flex-shrink: 0; }
     .header-badges { flex-wrap: wrap; justify-content: flex-end; }
     .account-row { grid-template-columns:1fr; align-items:stretch; }
     .account-order { justify-content:flex-start; }
@@ -847,6 +870,7 @@
   <!-- ===================== Main ===================== -->
   <div class="main">
     <header class="topbar">
+      <img class="topbar-logo" src="/static/logo-ratified.png" alt="RicePoster logo">
       <div class="breadcrumb" id="breadcrumb"><span class="crumb-muted">RICEPOSTER</span> &rsaquo; Review</div>
       <div class="topbar-right">
         <div class="header-badges" id="headerBadges"></div>

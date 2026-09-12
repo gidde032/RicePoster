@@ -69,6 +69,17 @@ published as a tagged release or GitHub Release.
 
 ### Fixed
 
+- At narrow viewports (<=860px) the sidebar nav collapsed vertically above
+  the main content, stretching the page. The sidebar now becomes a compact
+  horizontal icon strip, the logo moves into the topbar, and the topbar stays
+  single-line at all widths. Account names in slot headers no longer wrap
+  character-by-character; they truncate with an ellipsis at every viewport size.
+
+- `test_viewport_is_stable_across_processes` failed on machines with a real
+  `.account-state.json` because the subprocess loaded saved device assignments
+  that collided with the positional legacy index. The subprocess now uses an
+  isolated (nonexistent) state file path.
+
 - A slot with media but no caption is now visibly marked as skipped in the UI
   before a run begins, instead of being silently omitted server-side and
   leaving the run looking incomplete or failed. The run still proceeds for the
