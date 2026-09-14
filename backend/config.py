@@ -374,6 +374,15 @@ PREFLIGHT_CHECK_PLATFORMS = parse_preflight_platforms(
 INTER_SLOT_DELAY_MIN_S = _env_float("INTER_SLOT_DELAY_MIN_S", 60.0)
 INTER_SLOT_DELAY_MAX_S = _env_float("INTER_SLOT_DELAY_MAX_S", 180.0)
 
+# Feed dwell before the Instagram create step, in seconds (decision D5,
+# 2026-09-13). A session that opens, posts, and closes is a pure-publisher
+# pattern. A person reads the feed first. The flow scrolls the feed for a
+# random span in this range, then opens the composer. Set both to 0 to
+# disable, for example on a burner smoke run. A post takes up to a minute
+# longer; there is no outer timeout on the posting path to adjust.
+FEED_DWELL_MIN_S = _env_float("FEED_DWELL_MIN_S", 30.0)
+FEED_DWELL_MAX_S = _env_float("FEED_DWELL_MAX_S", 60.0)
+
 # Console verbosity for the `riceposter` logger (#26). Left at INFO, browser
 # automation narrates every step exactly as it always has; raised to WARNING,
 # only degraded and failed states are printed.

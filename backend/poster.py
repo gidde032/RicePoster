@@ -1,3 +1,5 @@
+"""Official-API orchestration. DORMANT BY DECISION: the browser path is live; ROADMAP.md lists completing the API clients as a non-goal."""
+
 import asyncio
 from pathlib import Path
 from backend.config import MOCK_MODE, get_accounts

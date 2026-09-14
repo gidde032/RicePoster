@@ -40,6 +40,29 @@ published as a tagged release or GitHub Release.
 
 ### Changed
 
+- **Instagram posting path hardening (Slot A, 2026-09-13).** Three changes
+  from `fable-scan/slotA/detection-analysis.md`, decisions D2, D4, and D5:
+  - *Device identity follows the mode.* Headed runs pass no viewport, screen,
+    or pixel-ratio override and launch with `--start-maximized`, so the
+    browser reports its real window on its real display. Headless runs keep
+    the per-slot synthetic identity from F3. Switching modes changes the
+    device an account presents; do it once, at a login.
+  - *Native input on the Create, Post, and caption-commit steps.* The sidebar
+    Create control and the Post menu item are found by locator, hovered, and
+    clicked through Playwright. The caption commit is a native blur and
+    focus. All three replaced `page.evaluate` calls whose JavaScript clicks
+    and dispatched events arrived with `isTrusted: false`. The happy path now
+    runs no script at all; the password probe on the not-found path remains.
+  - *Feed dwell before the composer opens.* The flow scrolls the feed for
+    30-60 s (`FEED_DWELL_MIN_S` / `FEED_DWELL_MAX_S`, both 0 to disable)
+    between popup dismissal and the Create click. Steps are planned up front
+    with jittered pauses above a 1.2 s floor. A post takes up to a minute
+    longer; there is no outer timeout on the posting path.
+  - The fingerprint probe mirrors the mode rule and now clicks a local button
+    from script and through Playwright, printing `isTrusted` for each.
+  - Instagram golden transcripts regenerated for the three changes; the diff
+    is the change and nothing else. `ig_feed_dwell.trace` added.
+
 - Over-length captions are now rejected at the API boundary before any browser
   work starts. Previously an Instagram caption past its ~2200-character cap was
   silently truncated by the editor, and the caption read-back check then failed

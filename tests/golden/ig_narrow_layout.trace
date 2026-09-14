@@ -1,4 +1,4 @@
-chromium.launch_persistent_context(user_data_dir='A', headless=True, channel='chrome', viewport={'width': 1512, 'height': 871}, screen={'width': 1512, 'height': 982}, device_scale_factor=2, args=['--disable-blink-features=AutomationControlled', '--disable-features=IsolateOrigins,site-per-process'])
+chromium.launch_persistent_context(user_data_dir='A', headless=True, channel='chrome', viewport={'width': 1512, 'height': 871}, screen={'width': 1512, 'height': 982}, device_scale_factor=2, args=['--disable-blink-features=AutomationControlled', '--disable-features=IsolateOrigins,site-per-process', '--start-maximized'])
 context.new_page()
 page.goto('https://www.instagram.com/', wait_until='networkidle', timeout=60000)
 sleep 2.000
@@ -9,7 +9,10 @@ sleep 0.500
 page.wait_for_selector("button:has-text('Not now')", timeout=2000)
 page.wait_for_selector("button:has-text('Decline optional cookies')", timeout=2000)
 page.wait_for_selector("button:has-text('Allow essential and optional cookies')", timeout=2000)
-page.evaluate(js#b71a8d51 '() => { const svg = document.querySelector(\'svg[aria-label="') -> 'clicked_a'
+locator('a:has(svg[aria-label="New post"])').count() -> 1
+locator('a:has(svg[aria-label="New post"])').first.hover()
+sleep 0.500
+locator('a:has(svg[aria-label="New post"])').first.click()
 sleep 2.000
 locator("button:has-text('Select from computer')").is_visible() -> True
 locator("div[role='dialog'] input[type='file']").wait_for(state='attached', timeout=20000)
@@ -49,7 +52,9 @@ locator("div[aria-label='Write a caption...']").first.press_sequentially('#later
 sleep 0.050
 locator("div[aria-label='Write a caption...']").first.press_sequentially('#goldenhour @studio', delay=60)
 sleep 0.500
-page.evaluate(js#7098e284 '() => { const selectors = [ \'div[aria-label="Write a caption')
+locator("div[aria-label='Write a caption...']").first.blur()
+sleep 0.500
+locator("div[aria-label='Write a caption...']").first.focus()
 sleep 1.500
 locator("div[aria-label='Write a caption...']").first.inner_text() -> 'sunset over the harbour #latergram #goldenhour @studio'
 locator("div[role='dialog']").locator("div[role='button']", has_text='Share').count() -> 1
