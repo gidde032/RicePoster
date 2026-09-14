@@ -6,12 +6,19 @@ Requires saved browser sessions (login state) per account.
 """
 
 import asyncio
+import random
+import re
 from pathlib import Path
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 # _post_id / _resolve_login_outcome are shared with tiktok_browser and must
 # behave identically on both platforms (tech-debt audit BE-3, 2026-07-29).
-from backend.config import DEBUG_DIR, IG_SESSIONS_DIR
+from backend.config import (
+    DEBUG_DIR,
+    FEED_DWELL_MAX_S,
+    FEED_DWELL_MIN_S,
+    IG_SESSIONS_DIR,
+)
 from backend.browser_common import (
     EDITOR_MARKER,
     _captions_match,
@@ -25,7 +32,7 @@ from backend.device_identity import (
     screen_for_slot,
     viewport_for_slot,
 )
-from backend.jitter import sleep_jittered, type_with_jitter
+from backend.jitter import jittered_duration, sleep_jittered, type_with_jitter
 from backend.logging_setup import get_logger
 
 _log = get_logger("instagram_browser")
@@ -49,6 +56,35 @@ DEBUG_DIR.mkdir(exist_ok=True)
 LOGIN_REDIRECT_MARKERS = ("/accounts/login", "/login")
 
 
+def _identity_kwargs(account_key: str, headless: bool) -> dict:
+    """Device identity for the browser context, chosen by mode (D2, 2026-09-13).
+
+    Headed: native identity. No viewport, screen, or pixel-ratio override. A
+    real window on a real display reports true values by construction, and
+    `--start-maximized` makes the window size deterministic per display.
+    Three accounts then present as one real device with three logins, which
+    Instagram supports, instead of three synthetic devices that differ only
+    in screen size.
+
+    Headless: synthetic per-slot identity (F3). No real window exists, so
+    without these Playwright's 1280x720 default would be one shared
+    fingerprint across every account again. The viewport alone is not a
+    device: without `screen` and `device_scale_factor`, screen.height equals
+    innerHeight and the pixel ratio stays 1 on a claimed Retina Mac. Measured
+    2026-07-27 with tools/probe_fingerprint.py.
+
+    Switching modes changes the device an account presents. Do it once, at a
+    login, and never toggle it between runs.
+    """
+    if not headless:
+        return dict(no_viewport=True)
+    return dict(
+        viewport=viewport_for_slot(account_key),
+        screen=screen_for_slot(account_key),
+        device_scale_factor=scale_factor_for_slot(account_key),
+    )
+
+
 async def _get_context(playwright, account_key: str, headless: bool = True) -> BrowserContext:
     """Get a persistent browser context for the given account. Preserves login state."""
     session_dir = SESSIONS_DIR / account_key
@@ -57,19 +93,7 @@ async def _get_context(playwright, account_key: str, headless: bool = True) -> B
         user_data_dir=str(session_dir),
         headless=headless,
         channel="chrome",
-        # Per-slot device identity (F3): three accounts posting back-to-back
-        # from one byte-identical synthetic device is the account-farm pattern
-        # Instagram's integrity systems look for. Stable per slot by
-        # construction — see backend/device_identity.py.
-        viewport=viewport_for_slot(account_key),
-        # The viewport alone is not a device. Without these two, window.screen
-        # reports the viewport's own size — so screen.height == innerHeight and
-        # availHeight == height, neither of which real hardware can produce —
-        # and devicePixelRatio stays 1 while the dimensions claim a Retina Mac.
-        # Both were measured on 2026-07-27 with tools/probe_fingerprint.py; the
-        # same tool verifies the fix without any live traffic.
-        screen=screen_for_slot(account_key),
-        device_scale_factor=scale_factor_for_slot(account_key),
+        **_identity_kwargs(account_key, headless),
         # No user_agent override: we launch real Chrome (channel="chrome"), so
         # its own UA is current and — critically — consistent with the Sec-CH-UA
         # client hints and navigator.userAgentData that Playwright cannot
@@ -101,6 +125,9 @@ async def _get_context(playwright, account_key: str, headless: bool = True) -> B
             # If a rendering problem reappears, re-solve it without advertising
             # a software renderer.
             "--disable-features=IsolateOrigins,site-per-process",
+            # Headed mode only has an effect: the window fills the display, so
+            # the native identity above is the same size on every run (D2).
+            "--start-maximized",
         ],
     )
     return context
@@ -139,28 +166,48 @@ async def _dismiss_popups(page: Page):
             pass
 
 
+# The sidebar Create control: the anchor that wraps the "New post" icon, or
+# the icon's own parent when the layout renders a button instead of a link.
+CREATE_BUTTON_SELECTORS = (
+    'a:has(svg[aria-label="New post"])',
+    'div[role="button"]:has(svg[aria-label="New post"])',
+)
+
+# The "Post" item in Create's dropdown. Exact text: the same menu holds "Live
+# video", and the sidebar holds "New post" and "Create".
+POST_MENU_ITEM_RE = re.compile(r"^\s*Post\s*$")
+
+
+async def _find_create_button(page: Page):
+    """Resolve the Create control, or None when no selector matches."""
+    attempts: list[tuple[str, int | None]] = []
+    for selector in CREATE_BUTTON_SELECTORS:
+        try:
+            loc = page.locator(selector)
+            count = await loc.count()
+            attempts.append((selector, count))
+            if count > 0:
+                return loc.first
+        except Exception:
+            attempts.append((selector, None))
+    _log.warning(_selector_chain_error("Create button", attempts))
+    return None
+
+
 async def _open_create_post(page: Page):
-    """Click Create in sidebar, handling both desktop dropdowns and mobile modal layouts."""
+    """Click Create in the sidebar, then Post in its dropdown.
 
-    # Step 1: Click the Create button (Your existing working logic)
-    clicked_create = await page.evaluate("""() => {
-        const svg = document.querySelector('svg[aria-label="New post"]');
-        if (!svg) return 'no_svg';
-        
-        let el = svg;
-        while (el && el.tagName !== 'A') {
-            el = el.parentElement;
-        }
-        if (el && el.tagName === 'A') {
-            el.click();
-            return 'clicked_a';
-        }
-        
-        svg.parentElement.click();
-        return 'clicked_parent';
-    }""")
+    Native Playwright actions only (D4, 2026-09-13). The earlier version
+    clicked through `page.evaluate` and JavaScript `.click()`, which fires
+    events with `isTrusted: false`; a page can log that. Playwright's own
+    hover and click go through the browser's input pipeline, the same path a
+    mouse takes, and arrive trusted. The narrow-layout branch is unchanged.
+    """
 
-    if clicked_create == 'no_svg':
+    # Step 1: hover, then click the Create control.
+    create = await _find_create_button(page)
+
+    if create is None:
         if url_matches_login_markers(page.url, LOGIN_REDIRECT_MARKERS):
             raise Exception(
                 "Instagram session expired — page shows login screen. "
@@ -181,6 +228,9 @@ async def _open_create_post(page: Page):
             )
         raise Exception("Could not find Create button SVG")
 
+    await create.hover()
+    await sleep_jittered(0.5)
+    await create.click()
     await sleep_jittered(2)
 
     # === INSERTED FIX: CHECK IF MODAL OPENED DIRECTLY ===
@@ -192,28 +242,17 @@ async def _open_create_post(page: Page):
         return 'opened_directly'
     # ===================================================
 
-    # Step 2: Click "Post" from the dropdown (Only runs if desktop dropdown appears)
-    clicked = await page.evaluate("""() => {
-        const links = document.querySelectorAll('a[href="#"]');
-        for (const link of links) {
-            const rect = link.getBoundingClientRect();
-            const text = link.textContent?.trim() || '';
-            if (rect.x < 150 && text.includes('Post') && !text.includes('New') && !text.includes('Create')) {
-                link.click();
-                return 'found: ' + text;
-            }
-        }
-        const allLinks = [];
-        document.querySelectorAll('a[href="#"]').forEach(link => {
-            const rect = link.getBoundingClientRect();
-            allLinks.push(rect.x + ',' + rect.y + ': ' + link.textContent?.trim()?.substring(0, 30));
-        });
-        return 'not_found. Links: ' + allLinks.join(' | ');
-    }""")
+    # Step 2: hover, then click "Post" in the dropdown. Desktop layout only.
+    post_item = page.locator('a[href="#"]', has_text=POST_MENU_ITEM_RE)
+    count = await post_item.count()
+    if count == 0:
+        raise Exception(_selector_chain_error(
+            "Post in the Create dropdown", [('a[href="#"] text=Post', count)]
+        ))
 
-    if clicked.startswith('not_found'):
-        raise Exception(f"Could not find Post in dropdown. Debug: {clicked}")
-
+    await post_item.first.hover()
+    await sleep_jittered(0.5)
+    await post_item.first.click()
     await sleep_jittered(3)
 
 
@@ -230,6 +269,65 @@ async def _open_create_post(page: Page):
 # timeouts and the fallback selector chains: they are features, not bugs.
 # Do not "tidy" them here.
 # ---------------------------------------------------------------------------
+
+
+# --- Feed dwell (D5, 2026-09-13) -------------------------------------------
+#
+# Scroll geometry and pacing for the read-the-feed span before the composer
+# opens. Steps are planned up front as a fixed list, not run against a
+# wall clock: the trace harness replaces sleep with a recorder, and a clock
+# loop would never end there.
+
+FEED_SCROLL_STEP_PX = (250, 900)       # one wheel notch burst, downward
+FEED_SCROLL_BACK_PX = (100, 400)       # an occasional glance back up
+FEED_SCROLL_BACK_CHANCE = 0.15
+FEED_SCROLL_PAUSE_BASE_S = 1.2         # floor between scrolls
+FEED_SCROLL_PAUSE_SPREAD_S = 1.6       # so a pause is 1.2-2.8 s
+
+
+def feed_dwell_seconds() -> float:
+    """Draw the total dwell for one run. 0 when disabled (both bounds 0).
+    A min above max is clamped, not raised: a bad env value must not take
+    down a posting run."""
+    lo = max(0.0, FEED_DWELL_MIN_S)
+    hi = max(0.0, FEED_DWELL_MAX_S)
+    if hi <= 0:
+        return 0.0
+    lo = min(lo, hi)
+    return jittered_duration(lo, spread=hi - lo)
+
+
+def feed_dwell_plan(total_s: float) -> list[tuple[int, float]]:
+    """Scroll steps as (delta_y, pause_s) whose pauses sum to at least
+    `total_s`. Empty when `total_s` is 0 or less."""
+    plan: list[tuple[int, float]] = []
+    elapsed = 0.0
+    while total_s > 0 and elapsed < total_s:
+        delta = random.randint(*FEED_SCROLL_STEP_PX)
+        if plan and random.random() < FEED_SCROLL_BACK_CHANCE:
+            delta = -random.randint(*FEED_SCROLL_BACK_PX)
+        pause = jittered_duration(FEED_SCROLL_PAUSE_BASE_S, FEED_SCROLL_PAUSE_SPREAD_S)
+        plan.append((delta, pause))
+        elapsed += pause
+    return plan
+
+
+async def _browse_feed(page: Page):
+    """Read the feed for a while before opening the composer.
+
+    A session that loads, posts, and leaves is a pure-publisher pattern. A
+    person scrolls first. Wheel events through Playwright are trusted input.
+    No-op when FEED_DWELL_MAX_S is 0.
+    """
+    total = feed_dwell_seconds()
+    if total <= 0:
+        return
+    plan = feed_dwell_plan(total)
+    _log.info(f"[Instagram] Browsing the feed for ~{int(total)}s ({len(plan)} scrolls) before posting...")
+    for delta, pause in plan:
+        await page.mouse.wheel(0, delta)
+        # The pause is already jittered above its floor; spread 0 keeps it.
+        await sleep_jittered(pause, 0.0)
 
 
 async def _open_instagram(page: Page, account_key: str):
@@ -403,30 +501,15 @@ async def _enter_caption(page: Page, caption_field, caption: str, account_key: s
         await type_with_jitter(caption_field, caption)
         await sleep_jittered(0.5)
 
-        # 3. CRITICAL: force Instagram's state model to acknowledge the text by
-        # blasting the element and its parents with native lifecycle events.
-        await page.evaluate("""() => {
-            const selectors = [
-                'div[aria-label="Write a caption..."]',
-                'div[aria-label="Write a caption…"]',
-                'div[role="textbox"]'
-            ];
-            let field = null;
-            for (const sel of selectors) {
-                field = document.querySelector(sel);
-                if (field) break;
-            }
-
-            if (field) {
-                // Fire text input events
-                field.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-                field.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-
-                // Force React to process text updates by losing focus (blur) then refocusing
-                field.dispatchEvent(new Event('blur', { bubbles: true }));
-                field.focus();
-            }
-        }""")
+        # 3. Commit the editor state the way a person does: leave the field
+        # and come back. Both are native focus changes (D4, 2026-09-13). This
+        # replaces a page.evaluate that dispatched synthetic input, change,
+        # and blur events, all with isTrusted false. Typed keystrokes already
+        # reach Draft.js as trusted input events, so the editor model holds
+        # the text; the blur/focus pair is what makes React settle it.
+        await caption_field.blur()
+        await sleep_jittered(0.5)
+        await caption_field.focus()
 
         # Give the framework a moment to process the state changes before Share
         await sleep_jittered(1.5)
@@ -495,6 +578,7 @@ async def post_media(
         try:
             await _open_instagram(page, account_key)
             await _dismiss_popups(page)
+            await _browse_feed(page)
             await _open_create_post(page)
             await _upload_media_file(page, media_path)
             await _dismiss_aspect_ratio_warning(page)

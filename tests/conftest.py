@@ -240,6 +240,21 @@ def no_inter_slot_delay(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_feed_dwell(monkeypatch):
+    """Disable the D5 feed dwell for the whole suite.
+
+    It defaults to 30-60 s of scrolling before the Instagram composer opens.
+    The trace harness records sleeps instead of waiting, but every Instagram
+    transcript would grow by dozens of scroll lines. The dwell has its own
+    transcript and unit tests, which set their own bounds.
+    """
+    from backend import instagram_browser
+
+    monkeypatch.setattr(instagram_browser, "FEED_DWELL_MIN_S", 0.0)
+    monkeypatch.setattr(instagram_browser, "FEED_DWELL_MAX_S", 0.0)
+
+
+@pytest.fixture(autouse=True)
 def tmp_health_cache(monkeypatch, tmp_path):
     """Redirect the F5 session-health cache to a temp file.
 

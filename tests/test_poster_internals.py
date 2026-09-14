@@ -183,6 +183,18 @@ def test_ig_unconfirmed_post_transcript(monkeypatch, tmp_sessions, media, allow_
     check_golden("ig_unconfirmed_post", _run_ig(monkeypatch, media, script))
 
 
+def test_ig_feed_dwell_transcript(monkeypatch, tmp_sessions, media, allow_browser_post_media):
+    """D5 (2026-09-13): the flow reads the feed before opening the composer.
+
+    The suite disables the dwell; this scenario turns it on at a 3 s floor so
+    the transcript shows the scroll steps, their pauses, and their position
+    between the popups and the Create click.
+    """
+    monkeypatch.setattr(instagram_browser, "FEED_DWELL_MIN_S", 3.0)
+    monkeypatch.setattr(instagram_browser, "FEED_DWELL_MAX_S", 3.0)
+    check_golden("ig_feed_dwell", _run_ig(monkeypatch, media, _ig_script()))
+
+
 # ---------------------------------------------------------------------------
 # TikTok scripts
 # ---------------------------------------------------------------------------
@@ -288,7 +300,7 @@ def test_ig_session_expiry_detected_by_password_field(monkeypatch, tmp_sessions,
     flow probes the DOM for a login form instead. This is the second, weaker
     expiry signal and it had no transcript."""
     script = _ig_script()
-    script.evaluate['aria-label="New post"'] = "no_svg"
+    script.counts["New post"] = 0
     script.evaluate['input[type="password"]'] = True
     check_golden("ig_expiry_via_password_probe", _run_ig(monkeypatch, media, script))
 

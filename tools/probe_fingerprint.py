@@ -9,6 +9,13 @@ headless default.
     python tools/probe_fingerprint.py --headless   # headless only, no window
     python tools/probe_fingerprint.py --slot B     # a different slot viewport
 
+Identity follows the mode exactly as `instagram_browser._identity_kwargs`
+does (D2, 2026-09-13): headless reproduces the per-slot synthetic device;
+visible passes no viewport, screen, or scale, so the values printed are the
+real window's. The visible run also clicks a local button two ways and
+prints `isTrusted` for each, which is the D4 evidence: a JavaScript
+`.click()` reports False, a Playwright click reports True.
+
 SAFETY — this tool does not post and cannot post:
   * It never navigates to instagram.com, tiktok.com, or any network URL. The
     only navigation is a `file://` page written into a temp directory.
@@ -56,16 +63,28 @@ from backend.device_identity import (  # noqa: E402
     viewport_for_slot,
 )
 
-# Copied verbatim from `instagram_browser._get_context` (2026-07-27) rather
+# Copied verbatim from `instagram_browser._get_context` (2026-09-13) rather
 # than imported, so this tool never pulls in a module that can post. If that
 # arg list changes, this copy is stale and the probe is no longer faithful —
 # `tests/test_probe_safety.py` fails when the two drift.
 IG_ARGS = [
     "--disable-blink-features=AutomationControlled",
     "--disable-features=IsolateOrigins,site-per-process",
+    "--start-maximized",
 ]
 
-_PROBE_PAGE = "<!doctype html><meta charset=utf-8><title>probe</title>"
+# One button that records how each click event arrived. `isTrusted` is the
+# browser's own verdict on whether a real input device produced the event.
+_PROBE_PAGE = (
+    "<!doctype html><meta charset=utf-8><title>probe</title>"
+    "<button id=b style='width:120px;height:40px'>probe</button>"
+    "<script>window.__clicks=[];"
+    "document.getElementById('b').addEventListener('click',"
+    "e=>window.__clicks.push(e.isTrusted));</script>"
+)
+
+_JS_CLICK = "() => document.getElementById('b').click()"
+_READ_CLICKS = "() => window.__clicks"
 
 PROBE_JS = """
 () => {
@@ -126,6 +145,18 @@ PROBE_JS = """
 """
 
 
+def identity_kwargs(headless: bool, slot: str) -> dict:
+    """Mirror of `instagram_browser._identity_kwargs`, kept local so the
+    probe imports nothing that can post."""
+    if not headless:
+        return dict(no_viewport=True)
+    return dict(
+        viewport=viewport_for_slot(slot),
+        screen=screen_for_slot(slot),
+        device_scale_factor=scale_factor_for_slot(slot),
+    )
+
+
 async def probe(headless: bool, slot: str) -> dict:
     """Launch Chrome once and return its self-reported fingerprint."""
     with tempfile.TemporaryDirectory(prefix="fpprobe-") as tmp:
@@ -139,15 +170,23 @@ async def probe(headless: bool, slot: str) -> dict:
                 user_data_dir=str(profile),
                 headless=headless,
                 channel="chrome",
-                viewport=viewport_for_slot(slot),
-                screen=screen_for_slot(slot),
-                device_scale_factor=scale_factor_for_slot(slot),
+                **identity_kwargs(headless, slot),
                 args=IG_ARGS,
             )
             try:
                 page = ctx.pages[0] if ctx.pages else await ctx.new_page()
                 await page.goto(page_file.as_uri())   # the only navigation
-                return await page.evaluate(PROBE_JS)
+                data = await page.evaluate(PROBE_JS)
+                # D4 evidence: the same button, clicked from script and then
+                # through Playwright's input pipeline.
+                await page.evaluate(_JS_CLICK)
+                button = page.locator("#b")
+                await button.hover()
+                await button.click()
+                clicks = await page.evaluate(_READ_CLICKS)
+                data["isTrusted_js_click"] = clicks[0] if len(clicks) > 0 else None
+                data["isTrusted_playwright_click"] = clicks[1] if len(clicks) > 1 else None
+                return data
             finally:
                 await ctx.close()
 
@@ -198,6 +237,12 @@ def verdict(headless: dict | None, visible: dict | None) -> None:
         print(f"  devicePixelRatio               : "
               f"{headless.get('devicePixelRatio')}  (Retina Macs report 2)")
 
+    for label, data in (("headless", headless), ("visible", visible)):
+        if data:
+            print(f"  {label} click isTrusted js/playwright: "
+                  f"{data.get('isTrusted_js_click')} / "
+                  f"{data.get('isTrusted_playwright_click')}")
+
     if headless and visible:
         print(f"\n  renderer differs between modes : "
               f"{_renderer(headless) != _renderer(visible)}")
@@ -220,7 +265,7 @@ async def main() -> None:
     run_visible = not args.headless
 
     print(f"Launching Chrome (local file:// only, throwaway profile, "
-          f"slot {args.slot} viewport).")
+          f"slot {args.slot} identity when headless, native when visible).")
 
     headless_result = visible_result = None
     if run_headless:

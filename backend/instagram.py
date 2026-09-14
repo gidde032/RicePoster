@@ -1,3 +1,5 @@
+"""Instagram Graph API client. DORMANT BY DECISION: never called; ROADMAP.md lists completing the API clients as a non-goal."""
+
 import asyncio
 import httpx
 import uuid
