@@ -274,6 +274,12 @@ class FakeLocator:
     async def focus(self, **kw):
         self.rec.add(_call(f"{self.desc}.focus", **kw))
 
+    async def blur(self, **kw):
+        self.rec.add(_call(f"{self.desc}.blur", **kw))
+
+    async def hover(self, **kw):
+        self.rec.add(_call(f"{self.desc}.hover", **kw))
+
     async def scroll_into_view_if_needed(self, **kw):
         self.rec.add(_call(f"{self.desc}.scroll_into_view_if_needed", **kw))
 
@@ -300,6 +306,14 @@ class FakeKeyboard:
         self.rec.add(_call("keyboard.insert_text", text))
 
 
+class FakeMouse:
+    def __init__(self, rec: Recorder):
+        self.rec = rec
+
+    async def wheel(self, delta_x, delta_y):
+        self.rec.add(_call("mouse.wheel", delta_x, delta_y))
+
+
 class FakeFrame:
     """An iframe content frame. Exposes the subset the flows use on `target`."""
 
@@ -321,6 +335,7 @@ class FakePage(FakeFrame):
     def __init__(self, rec: Recorder):
         super().__init__(rec, "page")
         self.keyboard = FakeKeyboard(rec)
+        self.mouse = FakeMouse(rec)
 
     @property
     def url(self):

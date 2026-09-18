@@ -5,7 +5,9 @@ instagram_browser.py :: login :: "Once logged in and you see your feed, press En
 instagram_browser.py :: login :: "(or type 'abort' + Enter to discard if the login didn't work)..."
 instagram_browser.py :: login :: f"[Instagram] Session saved for '{account_key}'."
 instagram_browser.py :: login :: f"[Instagram] Login aborted — discarded partial session for '{account_key}'."
+instagram_browser.py :: _find_create_button :: _selector_chain_error("Create button", attempts)
 instagram_browser.py :: _open_create_post :: "[Instagram] Narrow layout detected: Upload modal opened directly. Skipping Step 2."
+instagram_browser.py :: _browse_feed :: f"[Instagram] Browsing the feed for ~{int(total)}s ({len(plan)} scrolls) before posting..."
 instagram_browser.py :: _upload_media_file :: "[Instagram] Resolving file transfer stream nodes..."
 instagram_browser.py :: _upload_media_file :: "[Instagram] Video stream successfully transferred to creator panel!"
 instagram_browser.py :: _select_original_crop :: "Adjusting video aspect ratio to 9:16..."
