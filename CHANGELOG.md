@@ -7,6 +7,12 @@ published as a tagged release or GitHub Release.
 
 ### Added
 
+- **Cross-slot fingerprint comparison.** The offline fingerprint probe now
+  supports `--all-slots`, runs configured identities sequentially against local
+  `file://` pages and throwaway browser profiles, reports distinct and identical
+  repository-controlled surfaces, and exits nonzero on a collision. Unstable
+  host/runtime observations remain informational. ([#17](https://github.com/gidde032/RicePoster/issues/17))
+
 - **Consumed handoff cleanup.** Local Media now includes an explicit **Clear
   consumed batches** action for RiceClipper handoff archives. It removes only
   validated receipts already acknowledged as applied, reports batches and

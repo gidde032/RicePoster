@@ -8,6 +8,7 @@ headless default.
     python tools/probe_fingerprint.py              # both modes, side by side
     python tools/probe_fingerprint.py --headless   # headless only, no window
     python tools/probe_fingerprint.py --slot B     # a different slot viewport
+    python tools/probe_fingerprint.py --all-slots  # compare configured slots
 
 Identity follows the mode exactly as `instagram_browser._identity_kwargs`
 does (D2, 2026-09-13): headless reproduces the per-slot synthetic device;
@@ -58,6 +59,7 @@ if str(_REPO_ROOT) not in sys.path:
 from playwright.async_api import async_playwright  # noqa: E402
 
 from backend.device_identity import (  # noqa: E402
+    SLOT_IDS,
     scale_factor_for_slot,
     screen_for_slot,
     viewport_for_slot,
@@ -210,6 +212,66 @@ def _renderer(data: dict) -> str:
     return str(webgl)
 
 
+CONTROLLED_SURFACE_FIELDS = (
+    "innerSize",
+    "screenSize",
+    "devicePixelRatio",
+)
+
+
+def controlled_surface(data: dict) -> dict:
+    """Return only stable surfaces controlled by RicePoster's slot identity.
+
+    WebGL, UA, timezone, plugins, and other host/runtime values remain useful
+    probe output, but they must not decide whether configured slots differ.
+    """
+    return {field: data.get(field) for field in CONTROLLED_SURFACE_FIELDS}
+
+
+def group_controlled_surfaces(results: dict[str, dict]) -> list[list[str]]:
+    """Group slots whose repository-controlled runtime surfaces are identical."""
+    groups: dict[str, list[str]] = {}
+    for slot, data in results.items():
+        key = json.dumps(controlled_surface(data), sort_keys=True)
+        groups.setdefault(key, []).append(slot)
+    return list(groups.values())
+
+
+def show_slot_comparison(results: dict[str, dict]) -> bool:
+    """Print configured-slot differences; return False on an identity collision."""
+    print(f"\n{'=' * 64}\n  CONFIGURED SLOT COMPARISON\n{'=' * 64}")
+    for slot, data in results.items():
+        surface = controlled_surface(data)
+        print(
+            f"  {slot:<16} viewport={surface['innerSize']} "
+            f"screen={surface['screenSize']} "
+            f"scale={surface['devicePixelRatio']}"
+        )
+
+    groups = group_controlled_surfaces(results)
+    duplicates = [group for group in groups if len(group) > 1]
+    print(f"\n  differing controlled surfaces : {len(groups)}/{len(results)}")
+    if not duplicates:
+        if len(results) > 1:
+            print("  identical controlled surfaces : none — every configured slot differs")
+        else:
+            print("  identical controlled surfaces : not comparable — only one slot configured")
+        return True
+
+    for group in duplicates:
+        print(f"  IDENTICAL controlled surfaces : {', '.join(group)}")
+    return False
+
+
+async def probe_slots(slots: list[str]) -> dict[str, dict]:
+    """Probe configured slots sequentially with isolated throwaway profiles."""
+    results = {}
+    for slot in slots:
+        results[slot] = await probe(headless=True, slot=slot)
+        show(f"HEADLESS=True   (configured slot {slot})", results[slot])
+    return results
+
+
 def verdict(headless: dict | None, visible: dict | None) -> None:
     print(f"\n{'=' * 64}\n  VERDICT\n{'=' * 64}")
 
@@ -257,22 +319,47 @@ async def main() -> None:
                       help="headless only — opens no window")
     mode.add_argument("--visible", action="store_true",
                       help="visible only")
-    parser.add_argument("--slot", default="A",
-                        help="slot whose viewport to reproduce (default: A)")
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument(
+        "--slot",
+        help="slot whose viewport to reproduce (default: first configured slot)",
+    )
+    target.add_argument(
+        "--all-slots",
+        action="store_true",
+        help="probe every configured slot headlessly and report identity collisions",
+    )
     args = parser.parse_args()
+
+    if args.all_slots:
+        if args.visible:
+            parser.error(
+                "--all-slots compares headless per-slot identities and cannot be used with --visible"
+            )
+        slots = list(SLOT_IDS)
+        print(
+            "Launching Chrome sequentially for configured slots "
+            f"{', '.join(slots)} (local file:// only, one throwaway profile each)."
+        )
+        results = await probe_slots(slots)
+        if not show_slot_comparison(results):
+            raise SystemExit(1)
+        return
+
+    slot = args.slot or SLOT_IDS[0]
 
     run_headless = not args.visible
     run_visible = not args.headless
 
     print(f"Launching Chrome (local file:// only, throwaway profile, "
-          f"slot {args.slot} identity when headless, native when visible).")
+          f"slot {slot} identity when headless, native when visible).")
 
     headless_result = visible_result = None
     if run_headless:
-        headless_result = await probe(headless=True, slot=args.slot)
+        headless_result = await probe(headless=True, slot=slot)
         show("HEADLESS=True   (how ~all real traffic runs)", headless_result)
     if run_visible:
-        visible_result = await probe(headless=False, slot=args.slot)
+        visible_result = await probe(headless=False, slot=slot)
         show("HEADLESS=False  (how the F2 claim was validated)",
              visible_result)
 
