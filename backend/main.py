@@ -401,6 +401,20 @@ async def clear_media():
     return {"removed": removed}
 
 
+@app.post("/api/handoff/consumed/clear")
+async def clear_consumed_handoff_batches():
+    """Delete acknowledged RiceClipper handoff archives only."""
+    try:
+        return handoff_pickup.clear_consumed_batches()
+    except handoff_pickup.HandoffPickupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to inspect consumed handoff batches: {exc}",
+        )
+
+
 # A 512px-long-edge JPEG at q0.8 is ~30–80 KB; anything near this cap means
 # the client sent something other than the downscaled thumbnail we expect.
 MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024

@@ -8,6 +8,7 @@ paths so ingest never scans/moves the maintainer's real handoff or writes into
 the real `media/`.
 """
 
+import inspect
 import json
 from types import SimpleNamespace
 
@@ -214,6 +215,145 @@ def test_acknowledgement_is_idempotent_and_never_deletes_archive(tmp_handoff_pat
         handoff_pickup.ingest_oldest(["creator-one"])
 
 
+def test_clear_consumed_batches_removes_only_applied_archives(tmp_handoff_paths):
+    handoff = tmp_handoff_paths["handoff"]
+    applied_id = "batch_20260826_120000_aaaa"
+    staged_id = "batch_20260826_130000_bbbb"
+
+    _write_batch(handoff, applied_id, [(1, "clip_1.mp4", "applied")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    handoff_pickup.acknowledge(applied_id, ["creator-one"])
+    applied_archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / applied_id
+    expected_bytes = sum(
+        path.stat().st_size for path in applied_archive.rglob("*") if path.is_file()
+    )
+
+    _write_batch(handoff, staged_id, [(1, "clip_2.mp4", "staged")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    staged_archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / staged_id
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result == {
+        "removed_batches": 1,
+        "freed_bytes": expected_bytes,
+        "freed_bytes_complete": True,
+        "retained_unacknowledged": 1,
+        "skipped_unsafe_or_invalid": 0,
+        "failed_batches": 0,
+    }
+    assert not applied_archive.exists()
+    assert staged_archive.is_dir()
+
+
+def test_clear_consumed_batches_retains_invalid_and_symlinked_entries(
+    tmp_handoff_paths, tmp_path
+):
+    handoff = tmp_handoff_paths["handoff"]
+    archive_root = handoff / handoff_pickup.ARCHIVE_DIRNAME
+    archive_root.mkdir()
+
+    malformed = archive_root / "batch_20260826_120000_aaaa"
+    malformed.mkdir()
+    (malformed / handoff_pickup.RECEIPT_FILENAME).write_text("not json")
+
+    outside = tmp_path / "outside-batch"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("keep")
+    (archive_root / "batch_20260826_130000_bbbb").symlink_to(
+        outside, target_is_directory=True,
+    )
+    (archive_root / "maintainer-note.txt").write_text("keep")
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result["removed_batches"] == 0
+    assert result["skipped_unsafe_or_invalid"] == 3
+    assert malformed.is_dir()
+    assert (outside / "keep.txt").read_text() == "keep"
+    assert (archive_root / "maintainer-note.txt").read_text() == "keep"
+
+
+def test_clear_consumed_batches_retains_applied_archive_with_nested_symlink(
+    tmp_handoff_paths, tmp_path
+):
+    handoff = tmp_handoff_paths["handoff"]
+    batch_id = "batch_20260826_120000_aaaa"
+    _write_batch(handoff, batch_id, [(1, "clip_1.mp4", "applied")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    handoff_pickup.acknowledge(batch_id, ["creator-one"])
+    archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep")
+    (archive / "unexpected-link").symlink_to(outside)
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result["removed_batches"] == 0
+    assert result["skipped_unsafe_or_invalid"] == 1
+    assert archive.is_dir()
+    assert (archive / "unexpected-link").is_symlink()
+    assert outside.read_text() == "keep"
+
+
+def test_clear_consumed_batches_retains_unhashable_receipt_targets(
+    tmp_handoff_paths,
+):
+    handoff = tmp_handoff_paths["handoff"]
+    batch_id = "batch_20260826_120000_aaaa"
+    _write_batch(handoff, batch_id, [(1, "clip_1.mp4", "applied")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    handoff_pickup.acknowledge(batch_id, ["creator-one"])
+    archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id
+    receipt_path = archive / handoff_pickup.RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text())
+    receipt["target_account_ids"] = [[]]
+    receipt_path.write_text(json.dumps(receipt))
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result["removed_batches"] == 0
+    assert result["skipped_unsafe_or_invalid"] == 1
+    assert archive.is_dir()
+
+
+def test_clear_consumed_batches_is_idempotent_without_archive(tmp_handoff_paths):
+    assert handoff_pickup.clear_consumed_batches() == {
+        "removed_batches": 0,
+        "freed_bytes": 0,
+        "freed_bytes_complete": True,
+        "retained_unacknowledged": 0,
+        "skipped_unsafe_or_invalid": 0,
+        "failed_batches": 0,
+    }
+
+
+def test_clear_consumed_batches_reports_delete_failure(
+    tmp_handoff_paths, monkeypatch
+):
+    handoff = tmp_handoff_paths["handoff"]
+    batch_id = "batch_20260826_120000_aaaa"
+    _write_batch(handoff, batch_id, [(1, "clip_1.mp4", "applied")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    handoff_pickup.acknowledge(batch_id, ["creator-one"])
+    archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id
+    size_before = handoff_pickup._tree_size(archive)
+
+    def fail_delete(path):
+        (path / "clip_1.mp4").unlink()
+        raise OSError("read-only disk")
+
+    monkeypatch.setattr(handoff_pickup.shutil, "rmtree", fail_delete)
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result["removed_batches"] == 0
+    assert result["freed_bytes"] == size_before - handoff_pickup._tree_size(archive)
+    assert result["freed_bytes_complete"] is True
+    assert result["failed_batches"] == 1
+    assert archive.is_dir()
+
+
 def test_receipt_written_before_archive_move_is_completed_on_retry(tmp_handoff_paths):
     """Incident repair (HIGH): a crash at the move boundary must remain recoverable."""
     handoff, media = tmp_handoff_paths["handoff"], tmp_handoff_paths["media"]
@@ -370,10 +510,15 @@ def test_ack_rejects_roster_change_and_keeps_receipt_staged(tmp_handoff_paths):
     assert json.loads(receipt_path.read_text())["status"] == "staged"
 
 
-def test_handoff_consumer_contains_no_recursive_delete():
-    """Incident repair (CRITICAL): transition batches are never recursively purged."""
-    source = (PROJECT_ROOT / "backend" / "handoff_pickup.py").read_text()
-    assert "shutil.rmtree" not in source
+def test_handoff_transition_paths_contain_no_recursive_delete():
+    """Incident repair (CRITICAL): staging and ACK never recursively purge.
+
+    Issue #85 adds one explicit recursive delete, but only in the separately
+    confirmed cleanup path after a receipt has reached ``applied``.
+    """
+    assert "shutil.rmtree" not in inspect.getsource(handoff_pickup.ingest_oldest)
+    assert "shutil.rmtree" not in inspect.getsource(handoff_pickup.acknowledge)
+    assert "shutil.rmtree" in inspect.getsource(handoff_pickup.clear_consumed_batches)
 
 
 # --- pull endpoint ----------------------------------------------------------
@@ -460,6 +605,23 @@ def test_pull_ack_endpoint_marks_receipt_but_retains_archive(client, tmp_handoff
     assert json.loads((archive / handoff_pickup.RECEIPT_FILENAME).read_text())["status"] == "applied"
 
 
+def test_clear_consumed_endpoint_reports_removed_batches_and_bytes(
+    client, tmp_handoff_paths
+):
+    handoff = tmp_handoff_paths["handoff"]
+    batch_id = "batch_20260826_120000_aaaa"
+    _write_batch(handoff, batch_id, [(1, "clip_1.mp4", "hello")])
+    assert client.post("/api/pull-from-clipper").status_code == 200
+    assert client.post(f"/api/pull-from-clipper/{batch_id}/ack").status_code == 200
+
+    response = client.post("/api/handoff/consumed/clear")
+
+    assert response.status_code == 200
+    assert response.json()["removed_batches"] == 1
+    assert response.json()["freed_bytes"] > 0
+    assert not (handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id).exists()
+
+
 # --- media route (preview) --------------------------------------------------
 
 
@@ -504,6 +666,26 @@ def test_pull_frontend_preflights_before_mutation_and_acknowledges_after_apply()
     preflight = html[html.index("function assertPulledTargets") : html.index("function applyPulledSlot")]
     assert "slotElOpt('thumbRow', entry.slot)" in preflight
     assert "slotElOpt('thumbChip', entry.slot)" in preflight
+
+
+def test_consumed_cleanup_frontend_confirms_and_reports_safe_retention():
+    html = (PROJECT_ROOT / "frontend" / "index.html").read_text()
+    body = html[
+        html.index("async function clearConsumedBatches()"):
+        html.index("// --- Accounts:")
+    ]
+    assert "Clear consumed batches" in html
+    assert "/api/handoff/consumed/clear" in body
+    assert "confirm(" in body
+    assert "retained for recovery" in body
+    assert "left untouched" in body
+    assert "freed_bytes_complete === false" in body
+    pull = html[
+        html.index("async function pullFromClipper()"):
+        html.index("function assertPulledTargets")
+    ]
+    assert pull.index("await generateAll();") < pull.index("caption?.trim()")
+    assert pull.index("caption?.trim()") < pull.index("/ack`")
 
 
 def test_account_switch_removes_every_stale_slot_not_only_drafts():
