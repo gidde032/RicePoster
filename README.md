@@ -225,7 +225,16 @@ request, no restart needed. A malformed file is skipped with a console warning.
 python tools/probe_fingerprint.py            # both modes, side by side
 python tools/probe_fingerprint.py --headless # no window opens
 python tools/probe_fingerprint.py --slot B   # a different slot's device
+python tools/probe_fingerprint.py --all-slots # compare configured identities
 ```
+
+`--all-slots` launches each configured slot sequentially in headless mode,
+using a separate throwaway profile and the same local `file://` probe page for
+each. It reports the repository-controlled viewport, screen, and pixel ratio,
+names any slots whose controlled surfaces are identical, and exits nonzero on
+a collision. Host-dependent values such as WebGL, UA, timezone, plugins, and
+hardware are printed for diagnosis but do not decide the cross-slot result.
+The comparison never opens saved browser sessions or contacts a platform.
 
 Launches Chrome with the Instagram posting configuration, points it at a local
 `file://` page, and prints what the browser reports about itself — WebGL

@@ -10,9 +10,13 @@ Added 2026-07-27 alongside the tool.
 """
 
 import ast
+import asyncio
 from pathlib import Path
+import sys
 
 import pytest
+
+from tools import probe_fingerprint
 
 PROBE = Path(__file__).parent.parent / "tools" / "probe_fingerprint.py"
 
@@ -149,3 +153,127 @@ def test_probe_launch_args_match_instagram_browser(source):
         f"launch args drifted — instagram_browser has {ig_flags}, "
         f"probe has {probe_args}"
     )
+
+
+def _surface(width, height, scale, **unstable):
+    return {
+        "innerSize": [width, height - 111],
+        "screenSize": [width, height],
+        "devicePixelRatio": scale,
+        **unstable,
+    }
+
+
+def test_cross_slot_comparison_uses_only_repository_controlled_surfaces():
+    results = {
+        "A": _surface(1512, 982, 2, timezone="America/Chicago", webgl="host-a"),
+        "B": _surface(1440, 900, 2, timezone="Europe/Paris", webgl="host-b"),
+        # Host/runtime values differ, but C is still an identity collision with A.
+        "C": _surface(1512, 982, 2, timezone="Asia/Tokyo", webgl="host-c"),
+    }
+
+    groups = probe_fingerprint.group_controlled_surfaces(results)
+
+    assert groups == [["A", "C"], ["B"]]
+    assert set(probe_fingerprint.controlled_surface(results["A"])) == {
+        "innerSize", "screenSize", "devicePixelRatio",
+    }
+
+
+def test_cross_slot_report_names_identical_and_differing_surfaces(capsys):
+    results = {
+        "A": _surface(1512, 982, 2),
+        "B": _surface(1440, 900, 2),
+        "C": _surface(1512, 982, 2),
+    }
+
+    assert probe_fingerprint.show_slot_comparison(results) is False
+
+    output = capsys.readouterr().out
+    assert "differing controlled surfaces : 2/3" in output
+    assert "IDENTICAL controlled surfaces : A, C" in output
+
+
+def test_cross_slot_report_confirms_every_configured_slot_differs(capsys):
+    results = {
+        "A": _surface(1512, 982, 2),
+        "B": _surface(1440, 900, 2),
+    }
+
+    assert probe_fingerprint.show_slot_comparison(results) is True
+    assert "none — every configured slot differs" in capsys.readouterr().out
+
+
+def test_probe_slots_runs_sequential_headless_disposable_probes(monkeypatch):
+    calls = []
+
+    async def fake_probe(*, headless, slot):
+        calls.append((headless, slot))
+        return _surface(1512 if slot == "A" else 1440, 982, 2)
+
+    monkeypatch.setattr(probe_fingerprint, "probe", fake_probe)
+    monkeypatch.setattr(probe_fingerprint, "show", lambda *_args: None)
+
+    results = asyncio.run(probe_fingerprint.probe_slots(["A", "B"]))
+
+    assert calls == [(True, "A"), (True, "B")]
+    assert list(results) == ["A", "B"]
+
+
+def test_all_slots_preflight_reports_every_unresolved_assignment(monkeypatch, capsys):
+    def fake_identity_kwargs(headless, slot):
+        assert headless is True
+        if slot in {"A", "C"}:
+            raise ValueError(f"account {slot!r} has no stable device assignment")
+        return {"viewport": {"width": 1440, "height": 789}}
+
+    monkeypatch.setattr(probe_fingerprint, "identity_kwargs", fake_identity_kwargs)
+
+    errors = probe_fingerprint.slot_assignment_errors(["A", "B", "C"])
+    probe_fingerprint.show_slot_assignment_errors(errors)
+
+    assert list(errors) == ["A", "C"]
+    output = capsys.readouterr().out
+    assert "CONFIGURED SLOT PREFLIGHT FAILED" in output
+    assert "A                account 'A' has no stable device assignment" in output
+    assert "C                account 'C' has no stable device assignment" in output
+    assert "No browser probes were launched" in output
+
+
+def test_all_slots_cli_exits_nonzero_on_controlled_surface_collision(monkeypatch):
+    async def fake_probe_slots(slots):
+        assert slots == ["A", "B"]
+        return {
+            "A": _surface(1512, 982, 2),
+            "B": _surface(1512, 982, 2),
+        }
+
+    monkeypatch.setattr(probe_fingerprint, "SLOT_IDS", ("A", "B"))
+    monkeypatch.setattr(probe_fingerprint, "slot_assignment_errors", lambda _slots: {})
+    monkeypatch.setattr(probe_fingerprint, "probe_slots", fake_probe_slots)
+    monkeypatch.setattr(sys, "argv", ["probe_fingerprint.py", "--all-slots"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        asyncio.run(probe_fingerprint.main())
+
+    assert exc_info.value.code == 1
+
+
+def test_all_slots_cli_rejects_visible_mode(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["probe_fingerprint.py", "--all-slots", "--visible"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        asyncio.run(probe_fingerprint.main())
+
+    assert exc_info.value.code == 2
+    assert "cannot be used with --visible" in capsys.readouterr().err
+
+
+def test_all_slots_cli_is_headless_only_and_uses_configured_slots(source):
+    assert '"--all-slots"' in source
+    assert "slots = list(SLOT_IDS)" in source
+    assert "args.all_slots" in source and "args.visible" in source
