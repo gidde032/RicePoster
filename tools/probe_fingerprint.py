@@ -272,6 +272,25 @@ async def probe_slots(slots: list[str]) -> dict[str, dict]:
     return results
 
 
+def slot_assignment_errors(slots: list[str]) -> dict[str, str]:
+    """Return configured slots whose persisted device identity cannot resolve."""
+    errors = {}
+    for slot in slots:
+        try:
+            identity_kwargs(True, slot)
+        except ValueError as exc:
+            errors[slot] = str(exc)
+    return errors
+
+
+def show_slot_assignment_errors(errors: dict[str, str]) -> None:
+    """Explain why an all-slot comparison cannot safely start."""
+    print(f"\n{'=' * 64}\n  CONFIGURED SLOT PREFLIGHT FAILED\n{'=' * 64}")
+    for slot, error in errors.items():
+        print(f"  {slot:<16} {error}")
+    print("\n  No browser probes were launched; resolve these assignments and retry.")
+
+
 def verdict(headless: dict | None, visible: dict | None) -> None:
     print(f"\n{'=' * 64}\n  VERDICT\n{'=' * 64}")
 
@@ -341,6 +360,10 @@ async def main() -> None:
             "Launching Chrome sequentially for configured slots "
             f"{', '.join(slots)} (local file:// only, one throwaway profile each)."
         )
+        assignment_errors = slot_assignment_errors(slots)
+        if assignment_errors:
+            show_slot_assignment_errors(assignment_errors)
+            raise SystemExit(1)
         results = await probe_slots(slots)
         if not show_slot_comparison(results):
             raise SystemExit(1)

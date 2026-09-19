@@ -12,6 +12,7 @@ Added 2026-07-27 alongside the tool.
 import ast
 import asyncio
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -217,6 +218,59 @@ def test_probe_slots_runs_sequential_headless_disposable_probes(monkeypatch):
 
     assert calls == [(True, "A"), (True, "B")]
     assert list(results) == ["A", "B"]
+
+
+def test_all_slots_preflight_reports_every_unresolved_assignment(monkeypatch, capsys):
+    def fake_identity_kwargs(headless, slot):
+        assert headless is True
+        if slot in {"A", "C"}:
+            raise ValueError(f"account {slot!r} has no stable device assignment")
+        return {"viewport": {"width": 1440, "height": 789}}
+
+    monkeypatch.setattr(probe_fingerprint, "identity_kwargs", fake_identity_kwargs)
+
+    errors = probe_fingerprint.slot_assignment_errors(["A", "B", "C"])
+    probe_fingerprint.show_slot_assignment_errors(errors)
+
+    assert list(errors) == ["A", "C"]
+    output = capsys.readouterr().out
+    assert "CONFIGURED SLOT PREFLIGHT FAILED" in output
+    assert "A                account 'A' has no stable device assignment" in output
+    assert "C                account 'C' has no stable device assignment" in output
+    assert "No browser probes were launched" in output
+
+
+def test_all_slots_cli_exits_nonzero_on_controlled_surface_collision(monkeypatch):
+    async def fake_probe_slots(slots):
+        assert slots == ["A", "B"]
+        return {
+            "A": _surface(1512, 982, 2),
+            "B": _surface(1512, 982, 2),
+        }
+
+    monkeypatch.setattr(probe_fingerprint, "SLOT_IDS", ("A", "B"))
+    monkeypatch.setattr(probe_fingerprint, "slot_assignment_errors", lambda _slots: {})
+    monkeypatch.setattr(probe_fingerprint, "probe_slots", fake_probe_slots)
+    monkeypatch.setattr(sys, "argv", ["probe_fingerprint.py", "--all-slots"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        asyncio.run(probe_fingerprint.main())
+
+    assert exc_info.value.code == 1
+
+
+def test_all_slots_cli_rejects_visible_mode(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["probe_fingerprint.py", "--all-slots", "--visible"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        asyncio.run(probe_fingerprint.main())
+
+    assert exc_info.value.code == 2
+    assert "cannot be used with --visible" in capsys.readouterr().err
 
 
 def test_all_slots_cli_is_headless_only_and_uses_configured_slots(source):
