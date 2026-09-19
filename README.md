@@ -148,6 +148,13 @@ a roster that would retarget it is rejected. Browser acknowledgement marks the
 receipt applied but does not delete the archive. You land at step 5 (review
 captions → Post All). Pull never posts or schedules on its own.
 
+The Local Media view also provides **Clear consumed batches** for reclaiming
+space from acknowledged handoff archives. It deletes every validated `applied`
+receipt and reports the batches and bytes removed. Unacknowledged batches that
+may still be replayed, along with malformed or unrecognized entries, are left
+untouched. This is manual and irreversible; it does not delete the working
+copies already staged under `media/`.
+
 Also in the UI: an upload progress bar for large videos, a caption character
 counter (2,200 limit), session dots on each slot card, **New Run** to clear
 everything for the next batch, **Clear media** to empty the `media/` upload

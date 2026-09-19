@@ -285,6 +285,7 @@ TOP_LEVEL_IDS = [
     "headerBadges", "statusBar", "slotsContainer", "statusPanel",
     "queuePanel", "historyPanel", "scheduleRow", "scheduleTime",
     "btnPullClipper", "btnGenerate", "btnPost", "btnSchedule", "mediaInfo",
+    "consumedArchiveStatus",
 ]
 
 
@@ -308,7 +309,7 @@ def test_slot_scoped_ids_survive(root):
 PRESERVED_HANDLERS = [
     "init", "renderSlots", "pullFromClipper", "applyPulledSlot", "handleFile",
     "updateButtons", "generateAll", "regenerateCaption", "undoCaption",
-    "resetRun", "clearMedia", "toggleHistory", "startProgressPolling",
+    "resetRun", "clearMedia", "clearConsumedBatches", "toggleHistory", "startProgressPolling",
     "renderProgress", "postAll", "toggleScheduleRow", "scheduleAll",
     "refreshQueue", "renderQueuePanel", "fetchRetainedMedia", "deleteQueueMedia",
     "cancelQueueBatch", "buildSlotsPayload", "handleFetchError", "fetchWithTimeout",
@@ -322,6 +323,7 @@ def test_handlers_survive(fn):
 
 ENDPOINTS = [
     "/api/accounts", "/api/upload/", "/api/media-info", "/api/media/clear",
+    "/api/handoff/consumed/clear",
     "/api/generate-caption", "/api/pull-from-clipper", "/api/media/",
     "/api/post-progress", "/api/history", "/api/post", "/api/queue",
     "/api/queue/media", "/api/queue/", "/api/accounts/state", "/api/stats",

@@ -442,3 +442,76 @@ def acknowledge(batch_id: str, target_ids: list[str]) -> dict:
         receipt["applied_at"] = _now()
         _atomic_json(receipt_path, receipt)
     return {"batch_id": batch_id, "status": "applied", "source_archived": True}
+
+
+def _tree_size(path: Path) -> int:
+    """Return regular-file bytes under *path* without following symlinks."""
+    total = 0
+    with os.scandir(path) as entries:
+        for entry in entries:
+            if entry.is_symlink():
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                total += _tree_size(Path(entry.path))
+            elif entry.is_file(follow_symlinks=False):
+                total += entry.stat(follow_symlinks=False).st_size
+    return total
+
+
+def clear_consumed_batches() -> dict:
+    """Delete only acknowledged handoff archives.
+
+    A receipt becomes ``applied`` only after the browser has successfully
+    prepared Review and acknowledged the batch. Unacknowledged receipts remain
+    replay candidates and are never removed here. Unknown, malformed, or
+    symlinked entries are also retained so this maintenance action fails closed.
+    """
+    root = _checked_archive_root()
+    result = {
+        "removed_batches": 0,
+        "freed_bytes": 0,
+        "retained_unacknowledged": 0,
+        "skipped_unsafe_or_invalid": 0,
+        "failed_batches": 0,
+    }
+    if not root.is_dir():
+        return result
+
+    candidates: list[tuple[Path, int]] = []
+    for archive_dir in sorted(root.iterdir(), key=lambda path: path.name):
+        if (
+            archive_dir.is_symlink()
+            or not archive_dir.is_dir()
+            or not _BATCH_ID_RE.fullmatch(archive_dir.name)
+        ):
+            result["skipped_unsafe_or_invalid"] += 1
+            continue
+
+        receipt_path = archive_dir / RECEIPT_FILENAME
+        if not receipt_path.is_file() or receipt_path.is_symlink():
+            result["skipped_unsafe_or_invalid"] += 1
+            continue
+        try:
+            receipt = _load_receipt(receipt_path)
+            if receipt.get("status") != "applied":
+                result["retained_unacknowledged"] += 1
+                continue
+            if not isinstance(receipt.get("applied_at"), str) or not receipt["applied_at"]:
+                raise HandoffPickupError(
+                    f"applied receipt for {archive_dir.name} has no acknowledgement time"
+                )
+            _validate_receipt(receipt, archive_dir)
+            candidates.append((archive_dir, _tree_size(archive_dir)))
+        except (HandoffPickupError, OSError):
+            result["skipped_unsafe_or_invalid"] += 1
+
+    for archive_dir, size_bytes in candidates:
+        try:
+            shutil.rmtree(archive_dir)
+        except OSError:
+            result["failed_batches"] += 1
+            continue
+        result["removed_batches"] += 1
+        result["freed_bytes"] += size_bytes
+
+    return result

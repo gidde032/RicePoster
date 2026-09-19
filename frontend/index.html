@@ -592,6 +592,7 @@
     max-width: 320px;
   }
   .lm-clear-note { font-size: 12px; color: var(--muted-grey); margin-top: 8px; line-height: 1.5; }
+  .lm-cleanup-status { color: var(--muted-grey); font-size: 12px; margin-top: 10px; line-height: 1.5; }
   /* Clear media is destructive + subordinate: outlined in the fail hue, not filled. */
   .btn-clear {
     background: transparent;
@@ -958,12 +959,18 @@
           <h1 class="view-title">Local Media</h1>
           <p class="view-sub">Files in your local media directory used for posting.</p>
         </div>
-        <div style="display:flex; gap:24px; align-items:flex-start;">
+        <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
           <div class="lm-totals"><span id="mediaInfo"></span></div>
           <div class="lm-clear-card">
             <button type="button" class="btn-clear" onclick="clearMedia()">Clear media</button>
             <p class="lm-clear-note">Deletes RicePoster's uploaded copies in <strong>media/</strong>. Your
               original files are untouched. This cannot be undone.</p>
+          </div>
+          <div class="lm-clear-card">
+            <button type="button" class="btn-clear" onclick="clearConsumedBatches()">Clear consumed batches</button>
+            <p class="lm-clear-note">Deletes acknowledged RiceClipper source archives. Any batch still
+              needed for Pull recovery is retained. This cannot be undone.</p>
+            <p id="consumedArchiveStatus" class="lm-cleanup-status" aria-live="polite"></p>
           </div>
         </div>
       </div>
@@ -2004,6 +2011,35 @@ async function clearMedia() {
     refreshMediaInfo();
   } catch (e) {
     alert(`Clear failed: ${e.message}`);
+  }
+}
+
+async function clearConsumedBatches() {
+  if (!confirm(
+    'Delete all acknowledged RiceClipper source archives? Batches still needed for Pull recovery will be retained.',
+  )) return;
+  const status = el('consumedArchiveStatus');
+  status.textContent = 'Clearing acknowledged batches…';
+  try {
+    const resp = await fetchWithTimeout('/api/handoff/consumed/clear', { method: 'POST' });
+    await handleFetchError(resp);
+    const result = await resp.json();
+    const removed = result.removed_batches || 0;
+    const details = [
+      `Cleared ${removed} consumed batch${removed === 1 ? '' : 'es'} (${fmtBytes(result.freed_bytes || 0)}).`,
+    ];
+    if (result.retained_unacknowledged) {
+      details.push(`${result.retained_unacknowledged} unacknowledged batch${result.retained_unacknowledged === 1 ? '' : 'es'} retained for recovery.`);
+    }
+    if (result.skipped_unsafe_or_invalid) {
+      details.push(`${result.skipped_unsafe_or_invalid} unrecognized or invalid entr${result.skipped_unsafe_or_invalid === 1 ? 'y was' : 'ies were'} left untouched.`);
+    }
+    if (result.failed_batches) {
+      details.push(`${result.failed_batches} validated batch${result.failed_batches === 1 ? '' : 'es'} could not be removed.`);
+    }
+    status.textContent = details.join(' ');
+  } catch (e) {
+    status.textContent = `Clear failed: ${e.message}`;
   }
 }
 

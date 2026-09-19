@@ -7,6 +7,12 @@ published as a tagged release or GitHub Release.
 
 ### Added
 
+- **Consumed handoff cleanup.** Local Media now includes an explicit **Clear
+  consumed batches** action for RiceClipper handoff archives. It removes only
+  validated receipts already acknowledged as applied, reports batches and
+  bytes freed, and leaves replayable, malformed, foreign, or symlinked entries
+  untouched. ([#85](https://github.com/gidde032/RicePoster/issues/85))
+
 - **Saved accounts, rosters, and lightweight Stats.** Accounts are discovered
   from platform-first session folders while the configured compatibility
   roster and legacy TikTok cookie exports remain readable. The Accounts view
