@@ -175,11 +175,11 @@ def _copy_atomic(source: Path, destination: Path) -> None:
 def _validate_targets(target_ids: list[str]) -> list[str]:
     if not isinstance(target_ids, list) or not target_ids:
         raise HandoffPickupError("no active account targets are available for this batch")
-    if len(target_ids) != len(set(target_ids)):
-        raise HandoffPickupError("active account targets contain a duplicate id")
     for account_id in target_ids:
         if not isinstance(account_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", account_id):
             raise HandoffPickupError(f"unsafe active account target: {account_id!r}")
+    if len(target_ids) != len(set(target_ids)):
+        raise HandoffPickupError("active account targets contain a duplicate id")
     return target_ids
 
 
@@ -445,12 +445,14 @@ def acknowledge(batch_id: str, target_ids: list[str]) -> dict:
 
 
 def _tree_size(path: Path) -> int:
-    """Return regular-file bytes under *path* without following symlinks."""
+    """Return regular-file bytes under *path*, rejecting every symlink."""
     total = 0
     with os.scandir(path) as entries:
         for entry in entries:
             if entry.is_symlink():
-                continue
+                raise HandoffPickupError(
+                    f"handoff archive contains a symlink: {entry.name}"
+                )
             if entry.is_dir(follow_symlinks=False):
                 total += _tree_size(Path(entry.path))
             elif entry.is_file(follow_symlinks=False):
@@ -470,6 +472,7 @@ def clear_consumed_batches() -> dict:
     result = {
         "removed_batches": 0,
         "freed_bytes": 0,
+        "freed_bytes_complete": True,
         "retained_unacknowledged": 0,
         "skipped_unsafe_or_invalid": 0,
         "failed_batches": 0,
@@ -510,6 +513,12 @@ def clear_consumed_batches() -> dict:
             shutil.rmtree(archive_dir)
         except OSError:
             result["failed_batches"] += 1
+            try:
+                remaining_bytes = _tree_size(archive_dir) if archive_dir.exists() else 0
+            except (HandoffPickupError, OSError):
+                result["freed_bytes_complete"] = False
+            else:
+                result["freed_bytes"] += max(0, size_bytes - remaining_bytes)
             continue
         result["removed_batches"] += 1
         result["freed_bytes"] += size_bytes

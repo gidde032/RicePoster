@@ -237,6 +237,7 @@ def test_clear_consumed_batches_removes_only_applied_archives(tmp_handoff_paths)
     assert result == {
         "removed_batches": 1,
         "freed_bytes": expected_bytes,
+        "freed_bytes_complete": True,
         "retained_unacknowledged": 1,
         "skipped_unsafe_or_invalid": 0,
         "failed_batches": 0,
@@ -273,10 +274,54 @@ def test_clear_consumed_batches_retains_invalid_and_symlinked_entries(
     assert (archive_root / "maintainer-note.txt").read_text() == "keep"
 
 
+def test_clear_consumed_batches_retains_applied_archive_with_nested_symlink(
+    tmp_handoff_paths, tmp_path
+):
+    handoff = tmp_handoff_paths["handoff"]
+    batch_id = "batch_20260826_120000_aaaa"
+    _write_batch(handoff, batch_id, [(1, "clip_1.mp4", "applied")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    handoff_pickup.acknowledge(batch_id, ["creator-one"])
+    archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep")
+    (archive / "unexpected-link").symlink_to(outside)
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result["removed_batches"] == 0
+    assert result["skipped_unsafe_or_invalid"] == 1
+    assert archive.is_dir()
+    assert (archive / "unexpected-link").is_symlink()
+    assert outside.read_text() == "keep"
+
+
+def test_clear_consumed_batches_retains_unhashable_receipt_targets(
+    tmp_handoff_paths,
+):
+    handoff = tmp_handoff_paths["handoff"]
+    batch_id = "batch_20260826_120000_aaaa"
+    _write_batch(handoff, batch_id, [(1, "clip_1.mp4", "applied")])
+    handoff_pickup.ingest_oldest(["creator-one"])
+    handoff_pickup.acknowledge(batch_id, ["creator-one"])
+    archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id
+    receipt_path = archive / handoff_pickup.RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text())
+    receipt["target_account_ids"] = [[]]
+    receipt_path.write_text(json.dumps(receipt))
+
+    result = handoff_pickup.clear_consumed_batches()
+
+    assert result["removed_batches"] == 0
+    assert result["skipped_unsafe_or_invalid"] == 1
+    assert archive.is_dir()
+
+
 def test_clear_consumed_batches_is_idempotent_without_archive(tmp_handoff_paths):
     assert handoff_pickup.clear_consumed_batches() == {
         "removed_batches": 0,
         "freed_bytes": 0,
+        "freed_bytes_complete": True,
         "retained_unacknowledged": 0,
         "skipped_unsafe_or_invalid": 0,
         "failed_batches": 0,
@@ -292,8 +337,10 @@ def test_clear_consumed_batches_reports_delete_failure(
     handoff_pickup.ingest_oldest(["creator-one"])
     handoff_pickup.acknowledge(batch_id, ["creator-one"])
     archive = handoff / handoff_pickup.ARCHIVE_DIRNAME / batch_id
+    size_before = handoff_pickup._tree_size(archive)
 
-    def fail_delete(_path):
+    def fail_delete(path):
+        (path / "clip_1.mp4").unlink()
         raise OSError("read-only disk")
 
     monkeypatch.setattr(handoff_pickup.shutil, "rmtree", fail_delete)
@@ -301,7 +348,8 @@ def test_clear_consumed_batches_reports_delete_failure(
     result = handoff_pickup.clear_consumed_batches()
 
     assert result["removed_batches"] == 0
-    assert result["freed_bytes"] == 0
+    assert result["freed_bytes"] == size_before - handoff_pickup._tree_size(archive)
+    assert result["freed_bytes_complete"] is True
     assert result["failed_batches"] == 1
     assert archive.is_dir()
 
@@ -631,6 +679,13 @@ def test_consumed_cleanup_frontend_confirms_and_reports_safe_retention():
     assert "confirm(" in body
     assert "retained for recovery" in body
     assert "left untouched" in body
+    assert "freed_bytes_complete === false" in body
+    pull = html[
+        html.index("async function pullFromClipper()"):
+        html.index("function assertPulledTargets")
+    ]
+    assert pull.index("await generateAll();") < pull.index("caption?.trim()")
+    assert pull.index("caption?.trim()") < pull.index("/ack`")
 
 
 def test_account_switch_removes_every_stale_slot_not_only_drafts():

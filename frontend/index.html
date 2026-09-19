@@ -1498,6 +1498,12 @@ async function pullFromClipper() {
       updateThumbChip(slot);
     }));
     await generateAll();
+    const incomplete = pulled.filter(({ slot }) => !state.slots[slot]?.caption?.trim());
+    if (incomplete.length) {
+      throw new Error(
+        `Caption generation did not complete for ${incomplete.length} account(s); retry Pull before clearing the source archive.`,
+      );
+    }
 
     const ack = await fetchWithTimeout(
       `/api/pull-from-clipper/${encodeURIComponent(data.batch_id)}/ack`,
@@ -2026,7 +2032,7 @@ async function clearConsumedBatches() {
     const result = await resp.json();
     const removed = result.removed_batches || 0;
     const details = [
-      `Cleared ${removed} consumed batch${removed === 1 ? '' : 'es'} (${fmtBytes(result.freed_bytes || 0)}).`,
+      `Removed ${removed} consumed batch${removed === 1 ? '' : 'es'}; reclaimed ${fmtBytes(result.freed_bytes || 0)}.`,
     ];
     if (result.retained_unacknowledged) {
       details.push(`${result.retained_unacknowledged} unacknowledged batch${result.retained_unacknowledged === 1 ? '' : 'es'} retained for recovery.`);
@@ -2036,6 +2042,9 @@ async function clearConsumedBatches() {
     }
     if (result.failed_batches) {
       details.push(`${result.failed_batches} validated batch${result.failed_batches === 1 ? '' : 'es'} could not be removed.`);
+    }
+    if (result.freed_bytes_complete === false) {
+      details.push('The reclaimed-byte total is incomplete because a failed deletion could not be measured.');
     }
     status.textContent = details.join(' ');
   } catch (e) {

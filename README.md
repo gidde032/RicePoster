@@ -145,8 +145,10 @@ RicePoster writes a receipt with its frozen targets and file hashes, then moves
 the complete source batch into `HANDOFF_DIR/.riceposter-consumed/`. A browser
 failure or lost response replays that same unacknowledged receipt; changing to
 a roster that would retarget it is rejected. Browser acknowledgement marks the
-receipt applied but does not delete the archive. You land at step 5 (review
-captions → Post All). Pull never posts or schedules on its own.
+receipt applied only after every pulled slot has a generated caption, but does
+not delete the archive. A caption-generation failure leaves the receipt staged
+for a safe retry. You land at step 5 (review captions → Post All). Pull never
+posts or schedules on its own.
 
 The Local Media view also provides **Clear consumed batches** for reclaiming
 space from acknowledged handoff archives. It deletes every validated `applied`
