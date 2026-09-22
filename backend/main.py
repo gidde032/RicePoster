@@ -222,6 +222,7 @@ async def list_accounts():
             "rosters": state.rosters,
             "caption_defaults": state.caption_defaults,
             "device_profiles": state.device_profiles,
+            "disabled_platforms": state.disabled_platforms,
         },
         "account_state_error": state_error,
         "device_profile_capacity": store.capacity,
@@ -289,6 +290,12 @@ async def update_account_state(request: AccountStateRequest):
         rosters=request.rosters,
         caption_defaults=request.caption_defaults,
         device_profiles=dict(profiles),
+        # Empty lists carry no information; dropping them keeps the file tidy.
+        disabled_platforms={
+            account_id: list(platforms)
+            for account_id, platforms in request.disabled_platforms.items()
+            if platforms
+        },
     )
     try:
         store.save(state)
@@ -717,6 +724,7 @@ async def _run_post(request: PostRequest, effective_headless: bool) -> list[Post
                 "media_path": media_path,
                 "caption": req_slot.caption,
                 "media_type": req_slot.media_type or "image",
+                "enabled_platforms": set(req_slot.enabled_platforms),
             })
 
     if POST_MODE == "browser":
@@ -778,6 +786,7 @@ async def schedule_batch(request: ScheduleRequest):
             media_path=req_slot.filename,
             caption=req_slot.caption,
             account_id=req_slot.slot,
+            enabled_platforms=list(req_slot.enabled_platforms),
         ))
 
     effective_headless = HEADLESS if request.headless is None else request.headless

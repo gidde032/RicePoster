@@ -7,6 +7,7 @@ import asyncio
 import re
 from pathlib import Path
 from backend.models import PostResult
+from backend.outcomes import PLATFORMS, disabled_skip_error, is_disabled_skip, is_skip_error
 from backend.session_manager import session_exists
 from backend import instagram_browser, tiktok_browser
 from backend.config import INTER_SLOT_DELAY_MIN_S, INTER_SLOT_DELAY_MAX_S
@@ -57,10 +58,11 @@ def _notification_safe(error: str) -> str:
 
 def _is_skip(error: str) -> bool:
     """True for the 'skipped (...)' strings post_slot appends when a platform
-    has no saved session, or when the scheduler's pre-flight check already
-    ruled it out. A skip is neither an error nor an
-    unconfirmed post, so it must not trigger a per-slot push."""
-    return "skipped (no session" in error or "skipped (pre-flight" in error
+    has no saved session, when the scheduler's pre-flight check already
+    ruled it out, or when the maintainer disabled it on the slot. A skip is
+    neither an error nor an unconfirmed post, so it must not trigger a
+    per-slot push."""
+    return is_skip_error(error)
 
 
 def _shorten(text: str, limit: int = 120) -> str:
@@ -85,7 +87,12 @@ def _platform_events(result: PostResult) -> list[tuple[str, str, str]]:
         ("Instagram", "IG", result.ig_post_id),
         ("TikTok", "TT", result.tt_post_id),
     ):
-        errors = [e for e in result.errors if e.startswith(prefix)]
+        # A platform the maintainer disabled is not noteworthy: it is neither
+        # a failure nor a missing session, so it stays out of every push.
+        errors = [
+            e for e in result.errors
+            if e.startswith(prefix) and not is_disabled_skip(e)
+        ]
         real_errors = [e for e in errors if not _is_skip(e)]
         skips = [e for e in errors if _is_skip(e)]
         if real_errors:
@@ -216,11 +223,14 @@ async def post_slot(
     headless: bool = True,
     progress_cb=None,
     skip_platforms: set[str] | None = None,
+    enabled_platforms: set[str] | None = None,
 ) -> PostResult:
     """Post one media+caption to both IG and TikTok for a given account slot.
 
     Skips any platform that doesn't have a saved session, and any platform
-    named in `skip_platforms`.
+    named in `skip_platforms`. A platform missing from `enabled_platforms`
+    (the slot's tracker toggles; None means both) never opens a browser and
+    is recorded as disabled rather than skipped.
 
     `skip_platforms` carries the scheduler's pre-flight verdict (review
     2026-07-26, finding #2). session_exists() below is a filesystem-existence
@@ -231,12 +241,15 @@ async def post_slot(
     """
     result = PostResult(slot=slot)
     skip_platforms = skip_platforms or set()
+    enabled = set(PLATFORMS) if enabled_platforms is None else set(enabled_platforms)
 
     has_ig = session_exists("instagram", slot) and "instagram" not in skip_platforms
     has_tt = session_exists("tiktok", slot) and "tiktok" not in skip_platforms
 
     # Instagram post
-    if has_ig:
+    if "instagram" not in enabled:
+        result.errors.append(disabled_skip_error("instagram"))
+    elif has_ig:
         _notify(progress_cb, slot, "instagram", "started")
         try:
             result.ig_post_id = await instagram_browser.post_media(
@@ -262,7 +275,9 @@ async def post_slot(
         _notify(progress_cb, slot, "instagram", "skipped", "no session")
 
     # TikTok post
-    if has_tt:
+    if "tiktok" not in enabled:
+        result.errors.append(disabled_skip_error("tiktok"))
+    elif has_tt:
         _notify(progress_cb, slot, "tiktok", "started")
         try:
             result.tt_post_id = await tiktok_browser.post_media(
@@ -349,6 +364,7 @@ async def post_all(
             progress_cb=progress_cb,
             # Absent on the manual /api/post path, which runs no pre-flight.
             skip_platforms=s.get("skip_platforms"),
+            enabled_platforms=s.get("enabled_platforms"),
         )
         results.append(result)
         # Notify per-slot as soon as it lands, so a phone alert isn't held

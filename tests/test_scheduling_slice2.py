@@ -172,7 +172,7 @@ def _run_post_all(monkeypatch, canned, notifier_obj):
     by slot, so no session/browser path is touched."""
     async def fake_post_slot(slot, media_path, caption, media_type,
                              headless=True, progress_cb=None,
-                             skip_platforms=None):
+                             skip_platforms=None, enabled_platforms=None):
         return canned[slot]
 
     monkeypatch.setattr(poster_browser, "post_slot", fake_post_slot)
@@ -265,7 +265,7 @@ def test_post_all_default_notifier_is_noop_no_network(monkeypatch):
 
     async def fake_post_slot(slot, media_path, caption, media_type,
                              headless=True, progress_cb=None,
-                             skip_platforms=None):
+                             skip_platforms=None, enabled_platforms=None):
         return PostResult(slot=slot, ig_post_id="ig_ok", tt_post_id="tt_ok")
 
     monkeypatch.setattr(poster_browser, "post_slot", fake_post_slot)

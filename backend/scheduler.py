@@ -18,6 +18,7 @@ from backend.queue import (
 )
 from backend.notifier import get_notifier, send_safe
 from backend.models import PostResult
+from backend.outcomes import PLATFORMS, disabled_skip_error
 from backend.logging_setup import get_logger
 
 _log = get_logger("scheduler")
@@ -163,7 +164,11 @@ async def execute_batch(batch: QueuedBatch,
             target_id = s.account_id or s.slot
             notification_label = f"account {account_position}"
             platform_skips: dict[str, str] = {}
-            for platform in ["instagram", "tiktok"]:
+            # The selection frozen when the batch was scheduled. A disabled
+            # platform is never probed: it is not going to be posted to, so
+            # its session state is irrelevant and must not push an alert.
+            enabled = [p for p in PLATFORMS if p in s.enabled_platforms]
+            for platform in enabled:
                 status = await check_fn(target_id, platform)
                 if status in ("expired", "no_session"):
                     platform_skips[platform] = status
@@ -173,13 +178,16 @@ async def execute_batch(batch: QueuedBatch,
                         body=f"Pre-flight check: {status}",
                         priority="high",
                     )
-            if len(platform_skips) == 2:
+            if len(platform_skips) == len(enabled):
                 all_results.append(PostResult(
                     slot=target_id,
                     errors=[
                         f"{'IG' if p == 'instagram' else 'TT'} post: skipped "
                         f"(pre-flight ruled the session out: {st})"
                         for p, st in platform_skips.items()
+                    ] + [
+                        disabled_skip_error(p)
+                        for p in PLATFORMS if p not in enabled
                     ],
                 ))
             else:
@@ -195,6 +203,7 @@ async def execute_batch(batch: QueuedBatch,
                     # expired profile from a live one, and posts to a platform
                     # the maintainer was just told had been skipped.
                     "skip_platforms": set(platform_skips),
+                    "enabled_platforms": set(enabled),
                 })
 
         if proceeding_slots:

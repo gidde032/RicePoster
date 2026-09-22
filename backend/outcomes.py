@@ -7,9 +7,28 @@ import json
 from datetime import datetime, timezone
 
 
+PLATFORMS = ("instagram", "tiktok")
+PLATFORM_PREFIX = {"instagram": "IG", "tiktok": "TT"}
+
+# A platform the maintainer switched off on the slot's tracker. Recorded like a
+# skip so history keeps the evidence, but it is a deliberate choice rather than
+# a missing or failed session: it never notifies, never makes a batch partial,
+# and is shown as "Disabled" rather than "Skipped".
+_DISABLED_MARKER = "skipped (disabled for this account)"
+
+
+def disabled_skip_error(platform: str) -> str:
+    return f"{PLATFORM_PREFIX[platform]} post: {_DISABLED_MARKER}"
+
+
+def is_disabled_skip(error: object) -> bool:
+    return isinstance(error, str) and _DISABLED_MARKER in error
+
+
 def is_skip_error(error: object) -> bool:
     return isinstance(error, str) and (
         "skipped (no session" in error or "skipped (pre-flight" in error
+        or is_disabled_skip(error)
     )
 
 
@@ -36,6 +55,8 @@ def classify_platform(prefix: str, post_id: object, errors: object) -> str:
     # Review UI and poster event vocabulary.
     if any(not is_skip_error(e) for e in matching):
         return "failed"
+    if matching and all(is_disabled_skip(e) for e in matching):
+        return "disabled"
     if matching or legacy_skip:
         return "skipped"
     if isinstance(post_id, str) and post_id:

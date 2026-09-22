@@ -300,18 +300,28 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .slot-trackers { display: flex; align-items: center; gap: 14px; }
+  .slot-trackers { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
   .tracker { display: inline-flex; align-items: center; gap: 5px; }
+  /* Session trackers double as per-platform toggles. Reset the button chrome
+     so an enabled tracker looks exactly like the old read-only one. */
+  button.tracker {
+    background: none; border: 0; padding: 0; margin: 0;
+    font: inherit; color: inherit; cursor: pointer;
+  }
+  button.tracker:disabled { cursor: default; }
   .tracker .plat-ico { width: 17px; height: 17px; color: var(--rice-grey); flex: 0 0 auto; }
   .tracker .status-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--muted-grey);
   }
-  /* Trackers reflect session readiness only (ready / no-session), so just the
-     ok and muted states are used here. */
+  /* Trackers reflect session readiness (ready / no-session) plus a platform
+     the maintainer switched off (warn, "Session Disabled"). */
   .tracker .status-dot.st-ok    { background: var(--ok); }
   .tracker .status-dot.st-muted { background: var(--muted-grey); }
+  .tracker .status-dot.st-warn  { background: var(--warn); }
+  .tracker .st-text.st-warn     { color: var(--warn); }
   .tracker .st-text {
+    white-space: nowrap;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -1078,7 +1088,7 @@
 const state = {
   accounts: [],
   availableAccounts: [],
-  accountState: { active_account_ids: [], rosters: {}, caption_defaults: {}, device_profiles: {} },
+  accountState: { active_account_ids: [], rosters: {}, caption_defaults: {}, device_profiles: {}, disabled_platforms: {} },
   // Keyed by slot id; built from /api/accounts in init() — the backend's
   // ACCOUNT_SLOTS config is the single source of truth for the slot list
   slots: {},
@@ -1154,16 +1164,21 @@ const slotElOpt = (name, slot) => elOpt(`${name}_${slot}`);
 
 // Identical slot payload for POST /api/post and POST /api/queue, including the
 // per-session headless override that was duplicated with it (FE-3).
+//
+// A slot with both platforms switched off keeps its draft but is left out, so
+// Post All / Schedule never send a slot with nowhere to go.
 function buildSlotsPayload() {
   const activeIds = new Set(state.accounts.map(a => a.slot));
   const payload = {
     slots: Object.entries(state.slots)
-      .filter(([slot, s]) => activeIds.has(slot) && s.filename && s.caption.trim())
+      .filter(([slot, s]) => activeIds.has(slot) && s.filename && s.caption.trim()
+        && enabledPlatforms(slot).length)
       .map(([slot, s]) => ({
         slot,
         filename: s.filename,
         caption: s.caption,
         media_type: s.mediaType || 'image',
+        enabled_platforms: enabledPlatforms(slot),
       })),
   };
   if (state.postMode === 'browser') {
@@ -1290,6 +1305,41 @@ function styleOptions(slot) {
 const IG_ICON = `<svg class="plat-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg>`;
 const TT_ICON = `<svg class="plat-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 3c.35 2.1 1.7 3.55 3.8 3.85v2.62c-1.3.08-2.55-.32-3.7-1.02v5.83a5.35 5.35 0 1 1-5.35-5.35c.28 0 .56.02.83.07v2.7a2.66 2.66 0 1 0 1.87 2.54V3z"/></svg>`;
 
+// --- per-slot platform toggles ---
+// Stored server-side in account state (disabled_platforms) next to the caption
+// defaults, so a platform switched off stays off until flipped back.
+const PLATFORMS = ['instagram', 'tiktok'];
+const PLATFORM_NAMES = { instagram: 'Instagram', tiktok: 'TikTok' };
+
+function isPlatformEnabled(slot, platform) {
+  return !(state.accountState.disabled_platforms?.[slot] || []).includes(platform);
+}
+
+function enabledPlatforms(slot) {
+  return PLATFORMS.filter(p => isPlatformEnabled(slot, p));
+}
+
+async function togglePlatform(slot, platform) {
+  const all = state.accountState.disabled_platforms ||= {};
+  const previous = all[slot];
+  const current = previous || [];
+  const next = current.includes(platform)
+    ? current.filter(p => p !== platform)
+    : [...current, platform];
+  if (next.length) all[slot] = next; else delete all[slot];
+  renderSlots();
+  try {
+    await persistAccountState();
+  } catch (error) {
+    if (previous) all[slot] = previous; else delete all[slot];
+    alert(`Platform toggle was not saved: ${error.message}`);
+  }
+  renderSlots();
+  const target = document.querySelector(
+    `.slot-card[data-account-id="${CSS.escape(slot)}"] button.tracker[onclick*="'${platform}'"]`);
+  target?.focus();
+}
+
 function renderSlots() {
   const container = el('slotsContainer');
   container.innerHTML = '';
@@ -1304,16 +1354,31 @@ function renderSlots() {
     // present -> green "Ready", absent -> muted "No session", and when sessions
     // are not tracked (mock/api mode) a muted em-dash. Text always carries the
     // meaning so status is never colour-only. sessDots stays the variable name.
+    //
+    // Each tracker is also a switch: clicking it leaves that platform out of
+    // this slot's posts (warn "Session Disabled") until it is flipped back.
+    // The saved session itself is untouched. A missing session has nothing to
+    // switch, so that tracker stays read-only.
     const sess = state.postMode === 'browser' ? state.sessions?.[slot] : null;
-    const tracker = (name, ico, ok) => {
+    const tracker = (platform, name, ico, ok) => {
       const known = state.postMode === 'browser' && !!sess;
-      const st = known ? (ok ? 'st-ok' : 'st-muted') : 'st-muted';
-      const label = known ? (ok ? 'Ready' : 'No session') : '—';
-      return `<span class="tracker" role="img" aria-label="${escAttr(name + ': ' + label)}">`
-           + `${ico}<span class="status-dot ${st}"></span><span class="st-text">${esc(label)}</span></span>`;
+      const missing = known && !ok;
+      const on = isPlatformEnabled(slot, platform);
+      let st, label;
+      if (missing) [st, label] = ['st-muted', 'No session'];
+      else if (!on) [st, label] = ['st-warn', 'Session Disabled'];
+      else [st, label] = known ? ['st-ok', 'Ready'] : ['st-muted', '—'];
+      const title = missing ? `No saved ${name} session`
+        : on ? `Posting to ${name}. Click to leave ${name} out of this slot's posts.`
+        : `${name} is left out of this slot's posts; the saved session is kept. Click to turn it back on.`;
+      return `<button type="button" class="tracker" role="switch" aria-checked="${on && !missing}"`
+           + ` aria-label="${escAttr(name + ': ' + label)}" title="${escAttr(title)}"`
+           + (missing ? ' disabled' : ` onclick="togglePlatform('${escAttr(slot)}', '${platform}')"`)
+           + `>${ico}<span class="status-dot ${st}"></span><span class="st-text ${st === 'st-warn' ? 'st-warn' : ''}">${esc(label)}</span></button>`;
     };
     const sessDots = `<span class="slot-trackers">`
-      + `${tracker('Instagram', IG_ICON, sess?.instagram)}${tracker('TikTok', TT_ICON, sess?.tiktok)}</span>`;
+      + `${tracker('instagram', 'Instagram', IG_ICON, sess?.instagram)}`
+      + `${tracker('tiktok', 'TikTok', TT_ICON, sess?.tiktok)}</span>`;
 
     const card = document.createElement('div');
     card.className = 'slot-card';
@@ -1749,7 +1814,8 @@ async function handleFile(slot, file) {
 function updateButtons() {
   // Global Generate only fills empty caption boxes; redos are per-slot
   const hasAnyGeneratable = Object.values(state.slots).some(s => s.filename && !s.caption.trim());
-  const hasAnyCaptioned = Object.values(state.slots).some(s => s.filename && s.caption.trim());
+  // Posting needs a complete draft on a slot with at least one platform on.
+  const hasAnyCaptioned = buildSlotsPayload().slots.length > 0;
 
   el('btnGenerate').disabled = !hasAnyGeneratable;
   el('btnPost').disabled = !hasAnyCaptioned;
@@ -1901,6 +1967,7 @@ function isUnconfirmed(id) {
 function classifyPlatform(prefix, postId, errors) {
   const errs = (errors || []).filter(e => typeof e === 'string' && e.startsWith(prefix));
   if (errs.filter(e => !isSkipError(e)).length) return 'error';
+  if (errs.length && errs.every(isDisabledSkip)) return 'disabled';
   if (errs.some(isSkipError)) return 'skipped';
   if (postId) return isUnconfirmed(postId) ? 'unconfirmed' : 'ok';
   return 'none';
@@ -1917,6 +1984,7 @@ function statusCell(status) {
     error:       ['rs-fail',  '✗', 'Failed'],
     failed:      ['rs-fail',  '✗', 'Failed'],
     skipped:     ['rs-muted', '⊘', 'Skipped'],
+    disabled:    ['cell-muted', '○', 'Disabled'],
     not_attempted: ['cell-muted', '—', '—'],
   };
   const [cls, icon, label] = map[status] || ['cell-muted', '—', '—'];
@@ -1926,7 +1994,7 @@ function statusCell(status) {
 // Inline per-platform mark for the per-slot result footer, consistent with the
 // condensed summary and statusCell (a skip is shown as skipped, not failed).
 function platMark(status) {
-  return { ok: '✓', unconfirmed: '⚠ unconfirmed', error: '✗ failed', skipped: '⊘ skipped' }[status] || '—';
+  return { ok: '✓', unconfirmed: '⚠ unconfirmed', error: '✗ failed', skipped: '⊘ skipped', disabled: '○ disabled' }[status] || '—';
 }
 
 // Best-effort media kind from a filename extension (display only).
@@ -2125,6 +2193,7 @@ async function persistAccountState() {
       active_account_ids: state.accountState.active_account_ids,
       rosters: state.accountState.rosters || {},
       caption_defaults: state.accountState.caption_defaults || {},
+      disabled_platforms: state.accountState.disabled_platforms || {},
     }),
   });
   await handleFetchError(response);
@@ -2276,10 +2345,13 @@ function targetSummary(action) {
   const targets = buildSlotsPayload().slots.map(slot => {
     const account = state.accounts.find(candidate => candidate.slot === slot.slot);
     const sessions = state.sessions?.[slot.slot];
-    const platforms = state.postMode === 'browser' && sessions
-      ? [sessions.instagram && 'Instagram', sessions.tiktok && 'TikTok'].filter(Boolean)
-      : ['Instagram', 'TikTok'];
-    return `${account?.name || slot.slot} [${slot.slot}] (${platforms.length ? platforms.join(' + ') : 'no saved Instagram or TikTok session'})`;
+    const platforms = slot.enabled_platforms
+      .filter(p => !(state.postMode === 'browser' && sessions) || sessions[p])
+      .map(p => PLATFORM_NAMES[p]);
+    const where = platforms.length === 2 ? platforms.join(' + ')
+      : platforms.length === 1 ? `${platforms[0]} only`
+      : `no saved ${slot.enabled_platforms.map(p => PLATFORM_NAMES[p]).join(' or ')} session`;
+    return `${account?.name || slot.slot} [${slot.slot}] (${where})`;
   });
   return targets.length
     ? `${action} for exactly: ${targets.join('; ')}. Continue?`
@@ -2363,8 +2435,11 @@ async function toggleHistory() {
           ? `<span class="history-mode">${esc(en.post_mode)}</span>` : '';
         const sched = en.scheduled
           ? '<span class="history-scheduled">Scheduled</span>' : '<span class="cell-muted">—</span>';
-        const errs = (en.errors && en.errors.length)
-          ? `<span class="cell-err">${esc(en.errors.join('; ').slice(0, 120))}</span>` : '';
+        // A disabled platform is already shown by its status cell; it is a
+        // choice, not an error, so it stays out of the red error text.
+        const shownErrs = (en.errors || []).filter(e => !isDisabledSkip(e));
+        const errs = shownErrs.length
+          ? `<span class="cell-err">${esc(shownErrs.join('; ').slice(0, 120))}</span>` : '';
         return `<tr>
           <td class="cell-time">${time}</td>
           <td><strong>${esc(en.slot)}</strong>${mode}</td>
@@ -2705,7 +2780,11 @@ function renderQueuePanel(batches, snapshots) {
   // Scheduled and interrupted batches use the same cancelQueueBatch handler
   // (DELETE /api/queue/{id}); only the label differs (Cancel vs Dismiss).
   const batchRow = (b, action) => {
-    const slots = (b.slots || []).map(s => s.slot).join(', ');
+    // Name the platform when a slot was scheduled to only one of them.
+    const slots = (b.slots || []).map(s => {
+      const on = s.enabled_platforms || PLATFORMS;
+      return on.length === 1 ? `${s.slot} (${PLATFORM_NAMES[on[0]] || on[0]} only)` : s.slot;
+    }).join(', ');
     const localTime = new Date(b.fire_time).toLocaleString();
     const st = action === 'Dismiss'
       ? '<span class="cell-status rs-fail">● Interrupted</span>'
@@ -2917,7 +2996,15 @@ function summaryHtml(events) {
 // progress feed and the notifier already do.
 function isSkipError(e) {
   return typeof e === 'string'
-    && (e.includes('skipped (no session') || e.includes('skipped (pre-flight'));
+    && (e.includes('skipped (no session') || e.includes('skipped (pre-flight')
+      || isDisabledSkip(e));
+}
+
+// A platform switched off on the slot's tracker — mirrors
+// backend/outcomes.py::is_disabled_skip. Shown as "Disabled", never counted as
+// a skip or a failure.
+function isDisabledSkip(e) {
+  return typeof e === 'string' && e.includes('skipped (disabled for this account)');
 }
 
 // Per-platform outcome events from a run's PostResult list, classified exactly
@@ -2929,7 +3016,7 @@ function summaryEventsFromResults(results) {
   for (const r of results || []) {
     for (const [postId, prefix] of [[r.ig_post_id, 'IG'], [r.tt_post_id, 'TT']]) {
       const st = classifyPlatform(prefix, postId, r.errors);
-      if (st !== 'none') events.push({ status: st });
+      if (st !== 'none' && st !== 'disabled') events.push({ status: st });
     }
   }
   return events;

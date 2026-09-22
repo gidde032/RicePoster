@@ -7,6 +7,17 @@ published as a tagged release or GitHub Release.
 
 ### Added
 
+- **Per-slot platform toggles.** Each slot's Instagram and TikTok trackers are
+  now switches. Turning one off shows an amber **Session Disabled** state,
+  leaves that platform out of the slot's manual and scheduled posts without
+  touching the saved session, and stays off until flipped back (stored in
+  account state). Scheduled batches freeze the selection when they are
+  scheduled. A disabled platform is recorded as **Disabled** in History. It
+  sends no notification, and it never turns a batch "partial" or keeps its
+  media snapshot. Slots with both platforms off keep their draft but are left
+  out of Post All and Schedule, and the confirmation names the exact targets
+  (e.g. "Instagram only").
+
 - **Cross-slot fingerprint comparison.** The offline fingerprint probe now
   supports `--all-slots`, runs configured identities sequentially against local
   `file://` pages and throwaway browser profiles, reports distinct and identical
