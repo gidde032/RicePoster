@@ -28,7 +28,7 @@ from backend.account_state import (
 )
 from backend.device_identity import DISPLAYS
 from backend.outcomes import aggregate_stats, classify_history_row
-from backend.captions import generate_caption, load_styles, DEFAULT_STYLE
+from backend.captions import CaptionConfigError, generate_caption, load_styles, DEFAULT_STYLE
 from backend.poster import post_all as post_all_api
 from backend.poster_browser import post_all as post_all_browser
 from backend.notifier import get_notifier, send_safe
@@ -465,7 +465,7 @@ async def generate_caption_endpoint(data: Annotated[CaptionRequest, Form()]):
             data.feedback,
             thumbnail_b64=thumbnail_b64,
         )
-    except ValueError as e:
+    except (ValueError, CaptionConfigError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"caption": caption}
 

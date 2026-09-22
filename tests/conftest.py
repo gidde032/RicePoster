@@ -28,7 +28,14 @@ test. `allow_browser_post_media` is the single, explicit opt-in.
 """
 
 import os
-os.environ.setdefault("SCHEDULER_ENABLED", "false")
+
+# Environment the suite sets for itself before any backend import. Named so
+# test_gates can tell these values apart from a credentials.env leak: a local
+# credentials.env that also says SCHEDULER_ENABLED=false (as the template
+# suggests) matches this value without anything having been loaded.
+HERMETIC_ENV = {"SCHEDULER_ENABLED": "false"}
+for _key, _value in HERMETIC_ENV.items():
+    os.environ.setdefault(_key, _value)
 
 from types import SimpleNamespace
 

@@ -8,9 +8,9 @@ house style. Runs entirely on your machine — nothing is deployed.
 
 ## Prerequisites
 
-- Python **3.12** (what CI runs). The pinned `requirements.txt` builds on
-  3.10–3.12; on 3.13+ some pinned packages (`pydantic-core`, `greenlet`) have
-  no wheels and fail to compile during `pip install`
+- Python **3.12–3.14**. CI runs the suite on 3.12 (the required check) and
+  3.14. Use whichever of those your machine already has; if it has none,
+  `brew install python@3.14` (macOS) or your platform's installer
 - Google Chrome installed (Playwright uses the `chrome` channel for video codec
   support)
 - An Anthropic API key (for caption generation)
@@ -20,7 +20,7 @@ house style. Runs entirely on your machine — nothing is deployed.
 ```bash
 git clone https://github.com/gidde032/RicePoster.git
 cd RicePoster
-python3.12 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate   # python3 = 3.12–3.14
 pip install -r requirements.txt
 playwright install chrome          # the `chrome` channel, NOT `chromium`
 pre-commit install                 # wire up the commit/push quality gates
@@ -261,12 +261,13 @@ request, no restart needed. A malformed file is skipped with a console warning.
   dialogs (content-check opt-ins, feature promos) that block automation.
   The error message will name the dialog; log into that account in a normal
   browser, dismiss it once, and it won't reappear.
-- **`pip install` fails compiling `pydantic-core` or `greenlet`** — you are on
-  Python 3.13+. Recreate the virtual environment with Python 3.12.
-- **`pre-commit` hooks fail to install their environment** — same cause: the
-  hooks build their own environment from the pinned versions, using the Python
-  that `pre-commit` runs under. Install `pre-commit` inside the 3.12 virtual
-  environment.
+- **`pip install` fails compiling `pydantic-core` or `greenlet`** — your
+  Python is outside 3.12–3.14 (or the virtual environment was built from an
+  older checkout's pins). Recreate `.venv` with a supported Python and
+  reinstall `requirements.txt`.
+- **Caption generation says `ANTHROPIC_API_KEY` is not set or was rejected** —
+  put a valid key in `credentials.env` and restart the server; the template's
+  placeholder is not a key.
 - **"Unknown slot/account target"** or **Post All stays disabled** — check the
   Accounts view: the account must be active, have media and a caption, and
   have at least one platform toggle on.

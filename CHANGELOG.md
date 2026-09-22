@@ -63,6 +63,14 @@ published as a tagged release or GitHub Release.
 
 ### Changed
 
+- **Dependency pins updated for Python 3.12–3.14.** The old pins
+  (`pydantic-core`, `greenlet`) had no wheels for Python 3.13+, so
+  `pip install -r requirements.txt` failed on a machine without 3.12.
+  `requirements.txt` and both pre-commit hook environments now pin current
+  releases (FastAPI 0.141, Pydantic 2.13, Playwright 1.62, Anthropic 0.121,
+  among others), and the unused `aiofiles` is dropped. CI adds a
+  non-required Python 3.14 job beside the required 3.12 check.
+
 - **Instagram posting path hardening (Slot A, 2026-09-13).** Three changes
   from `fable-scan/slotA/detection-analysis.md`, decisions D2, D4, and D5:
   - *Device identity follows the mode.* Headed runs pass no viewport, screen,
@@ -114,6 +122,15 @@ published as a tagged release or GitHub Release.
   [#68](https://github.com/gidde032/RicePoster/issues/68))
 
 ### Fixed
+
+- Caption generation with a missing or rejected `ANTHROPIC_API_KEY` now
+  answers 400 with a message naming the key and `credentials.env`, instead
+  of a bare 500 whose cause only reached the server log.
+
+- The credentials-leak gate no longer fails when `credentials.env` sets
+  `SCHEDULER_ENABLED=false` (a value the test suite sets for itself), and the
+  logging-handler tests count only RicePoster's own console handler, so they
+  pass under pytest versions that attach extra capture handlers.
 
 - Instagram posting now accepts both Create-menu variants observed across
   accounts: the established `a[href="#"]` Post item and the newer nested
