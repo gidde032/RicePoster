@@ -176,6 +176,7 @@ CREATE_BUTTON_SELECTORS = (
 # The "Post" item in Create's dropdown. Exact text: the same menu holds "Live
 # video", and the sidebar holds "New post" and "Create".
 POST_MENU_ITEM_RE = re.compile(r"^\s*Post\s*$")
+POST_MENU_ITEM_WAIT_MS = 10000
 
 
 async def _find_create_button(page: Page):
@@ -192,6 +193,42 @@ async def _find_create_button(page: Page):
             attempts.append((selector, None))
     _log.warning(_selector_chain_error("Create button", attempts))
     return None
+
+
+async def _find_post_menu_item(page: Page):
+    """Resolve the desktop Create-menu Post item across Instagram layouts.
+
+    The established layout uses an ``a[href="#"]``. Some accounts receive a
+    menu whose visible row is nested entirely in spans and divs instead. Keep
+    the narrow anchor first, then wait for exact visible text so a slow render
+    and the non-anchor layout share the same fallback without using script.
+    """
+    attempts: list[tuple[str, int | None]] = []
+
+    anchor = page.locator('a[href="#"]', has_text=POST_MENU_ITEM_RE)
+    try:
+        count = await anchor.count()
+        attempts.append(('a[href="#"] text=Post', count))
+        if count > 0:
+            return anchor.first
+    except Exception:
+        attempts.append(('a[href="#"] text=Post', None))
+
+    exact_text = page.get_by_text("Post", exact=True)
+    try:
+        await exact_text.first.wait_for(state="visible", timeout=POST_MENU_ITEM_WAIT_MS)
+        count = await exact_text.count()
+        attempts.append(('exact visible text=Post', count))
+        if count > 0:
+            return exact_text.first
+    except Exception:
+        try:
+            count = await exact_text.count()
+        except Exception:
+            count = None
+        attempts.append(('exact visible text=Post', count))
+
+    raise Exception(_selector_chain_error("Post in the Create dropdown", attempts))
 
 
 async def _open_create_post(page: Page):
@@ -243,16 +280,11 @@ async def _open_create_post(page: Page):
     # ===================================================
 
     # Step 2: hover, then click "Post" in the dropdown. Desktop layout only.
-    post_item = page.locator('a[href="#"]', has_text=POST_MENU_ITEM_RE)
-    count = await post_item.count()
-    if count == 0:
-        raise Exception(_selector_chain_error(
-            "Post in the Create dropdown", [('a[href="#"] text=Post', count)]
-        ))
+    post_item = await _find_post_menu_item(page)
 
-    await post_item.first.hover()
+    await post_item.hover()
     await sleep_jittered(0.5)
-    await post_item.first.click()
+    await post_item.click()
     await sleep_jittered(3)
 
 

@@ -330,6 +330,9 @@ class FakeFrame:
     def locator(self, selector, **kw):
         return FakeLocator(self.rec, _call("locator", selector, **kw))
 
+    def get_by_text(self, text, **kw):
+        return FakeLocator(self.rec, _call("get_by_text", text, **kw))
+
 
 class FakePage(FakeFrame):
     def __init__(self, rec: Recorder):

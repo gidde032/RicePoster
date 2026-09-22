@@ -79,6 +79,29 @@ def test_create_and_post_clicks_are_native_and_hovered(monkeypatch, tmp_sessions
     assert any(line.endswith(".click()") for line in post)
 
 
+def test_non_anchor_post_menu_item_falls_back_to_exact_text(
+    monkeypatch, tmp_sessions, media, allow_browser_post_media,
+):
+    """Instagram can render the visible Post row as nested spans and divs,
+    with no anchor or href anywhere in the menu-item chain."""
+    script = _ig_script(counts={
+        'a[href="#"]': 0,
+        "get_by_text('Post', exact=True)": 2,
+    })
+    rec = run_traced(
+        monkeypatch,
+        instagram_browser,
+        lambda: instagram_browser.post_media("A", media, CAPTION, "reel", headless=True),
+        script,
+    )
+
+    assert rec.lines[-1] == "RETURN 'ig_post_ok_A'"
+    fallback = [line for line in rec.lines if "get_by_text('Post', exact=True)" in line]
+    assert any("wait_for(state='visible', timeout=10000)" in line for line in fallback)
+    assert any(line.endswith(".hover()") for line in fallback)
+    assert any(line.endswith(".click()") for line in fallback)
+
+
 def test_caption_commit_is_native_blur_then_focus(monkeypatch, tmp_sessions, media, allow_browser_post_media):
     rec = _normal_run(monkeypatch, media)
     typed = max(i for i, line in enumerate(rec.lines) if ".press_sequentially(" in line)
