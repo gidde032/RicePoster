@@ -28,7 +28,7 @@ from backend.account_state import (
 )
 from backend.device_identity import DISPLAYS
 from backend.outcomes import aggregate_stats, classify_history_row
-from backend.captions import generate_caption, load_styles, DEFAULT_STYLE
+from backend.captions import CaptionConfigError, generate_caption, load_styles, DEFAULT_STYLE
 from backend.poster import post_all as post_all_api
 from backend.poster_browser import post_all as post_all_browser
 from backend.notifier import get_notifier, send_safe
@@ -222,6 +222,7 @@ async def list_accounts():
             "rosters": state.rosters,
             "caption_defaults": state.caption_defaults,
             "device_profiles": state.device_profiles,
+            "disabled_platforms": state.disabled_platforms,
         },
         "account_state_error": state_error,
         "device_profile_capacity": store.capacity,
@@ -289,6 +290,12 @@ async def update_account_state(request: AccountStateRequest):
         rosters=request.rosters,
         caption_defaults=request.caption_defaults,
         device_profiles=dict(profiles),
+        # Empty lists carry no information; dropping them keeps the file tidy.
+        disabled_platforms={
+            account_id: list(platforms)
+            for account_id, platforms in request.disabled_platforms.items()
+            if platforms
+        },
     )
     try:
         store.save(state)
@@ -458,7 +465,7 @@ async def generate_caption_endpoint(data: Annotated[CaptionRequest, Form()]):
             data.feedback,
             thumbnail_b64=thumbnail_b64,
         )
-    except ValueError as e:
+    except (ValueError, CaptionConfigError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"caption": caption}
 
@@ -717,6 +724,7 @@ async def _run_post(request: PostRequest, effective_headless: bool) -> list[Post
                 "media_path": media_path,
                 "caption": req_slot.caption,
                 "media_type": req_slot.media_type or "image",
+                "enabled_platforms": set(req_slot.enabled_platforms),
             })
 
     if POST_MODE == "browser":
@@ -778,6 +786,7 @@ async def schedule_batch(request: ScheduleRequest):
             media_path=req_slot.filename,
             caption=req_slot.caption,
             account_id=req_slot.slot,
+            enabled_platforms=list(req_slot.enabled_platforms),
         ))
 
     effective_headless = HEADLESS if request.headless is None else request.headless

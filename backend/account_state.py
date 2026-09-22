@@ -17,6 +17,7 @@ from pathlib import Path
 SCHEMA_VERSION = 1
 ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 ROSTER_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _-]{0,39}$")
+PLATFORMS = ("instagram", "tiktok")
 
 
 class AccountStateError(ValueError):
@@ -38,6 +39,10 @@ class AccountState:
     rosters: dict[str, list[str]] = field(default_factory=dict)
     caption_defaults: dict[str, str] = field(default_factory=dict)
     device_profiles: dict[str, int] = field(default_factory=dict)
+    # Platforms switched off on an account's Review trackers. They stay off
+    # until flipped back; absent means both platforms are enabled. Optional
+    # with a default, so state files written before the toggles still load.
+    disabled_platforms: dict[str, list[str]] = field(default_factory=dict)
 
 
 def validate_account_id(account_id: str) -> str:
@@ -183,6 +188,13 @@ class AccountStateStore:
                 raise AccountStateError(f"Caption default references unknown account {account_id!r}.")
             if style not in self.style_ids:
                 raise AccountStateError(f"Unknown caption style selected for account {account_id!r}.")
+        for account_id, platforms in state.disabled_platforms.items():
+            if account_id not in known:
+                raise AccountStateError(f"Disabled platforms reference unknown account {account_id!r}.")
+            if (not isinstance(platforms, list)
+                    or len(set(platforms)) != len(platforms)
+                    or any(p not in PLATFORMS for p in platforms)):
+                raise AccountStateError(f"Invalid disabled platforms for account {account_id!r}.")
         used: dict[int, str] = {}
         for account_id, profile in state.device_profiles.items():
             if account_id not in known:

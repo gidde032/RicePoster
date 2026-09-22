@@ -22,6 +22,7 @@ import pytest
 from backend import config
 from backend.logging_setup import (
     ROOT_NAME,
+    _StdoutHandler,
     configure_logging,
     get_logger,
     resolve_level,
@@ -114,12 +115,22 @@ class TestConsoleHandlerStaysVisible:
         assert "SHOULD-APPEAR" in out
 
 
+def _console_handlers(logger):
+    """RicePoster's own console handlers on `logger`.
+
+    Counted by type, not by `len(logger.handlers)`: the test runner may attach
+    its own capture handlers to a non-propagating logger (pytest 9.1 adds
+    four), and those neither print to the console nor belong to the app.
+    """
+    return [h for h in logger.handlers if isinstance(h, _StdoutHandler)]
+
+
 class TestHandlerInstallation:
     def test_reconfiguring_does_not_stack_handlers(self, restore_logger):
         """A second handler would print every automation line twice."""
         configure_logging("INFO")
         configure_logging("DEBUG")
-        assert len(restore_logger.handlers) == 1
+        assert len(_console_handlers(restore_logger)) == 1
 
     def test_records_do_not_propagate_to_root(self):
         """uvicorn installs root handlers; propagating would double output."""
@@ -127,7 +138,7 @@ class TestHandlerInstallation:
 
     def test_handler_follows_a_replaced_stdout(self, restore_logger, capsys):
         """Late binding, asserted directly rather than through capsys."""
-        handler = restore_logger.handlers[0]
+        [handler] = _console_handlers(restore_logger)
         original = sys.stdout
         try:
             sys.stdout = object()

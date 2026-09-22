@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from backend.outcomes import PLATFORMS, is_disabled_skip
 
 # Accepted media kinds for caption generation. Previously unvalidated: an
 # unknown value reached generate_caption and shaped a prompt from nonsense
@@ -107,6 +111,19 @@ class PostSlot(BaseModel):
     filename: str
     caption: str
     media_type: str = "image"
+    # Platforms the slot's trackers have switched on. Defaults to both so
+    # requests from before the per-slot toggles keep their meaning.
+    enabled_platforms: list[Literal["instagram", "tiktok"]] = Field(
+        default_factory=lambda: list(PLATFORMS)
+    )
+
+    @model_validator(mode="after")
+    def _enabled_platforms_valid(self):
+        if not self.enabled_platforms:
+            raise ValueError(f"Slot {self.slot}: at least one platform must be enabled.")
+        if len(set(self.enabled_platforms)) != len(self.enabled_platforms):
+            raise ValueError(f"Slot {self.slot}: enabled_platforms has duplicates.")
+        return self
 
     @model_validator(mode="after")
     def _caption_within_limit(self):
@@ -140,7 +157,9 @@ class PostResult(BaseModel):
 
     @property
     def success(self) -> bool:
-        return len(self.errors) == 0
+        # A platform the maintainer disabled is recorded, but it is not a
+        # failure: an IG-only slot that posted to IG succeeded.
+        return all(is_disabled_skip(e) for e in self.errors)
 
 
 class ScheduleRequest(PostRequest):
@@ -172,3 +191,6 @@ class AccountStateRequest(BaseModel):
     active_account_ids: list[str]
     rosters: dict[str, list[str]] = Field(default_factory=dict)
     caption_defaults: dict[str, str] = Field(default_factory=dict)
+    disabled_platforms: dict[str, list[Literal["instagram", "tiktok"]]] = Field(
+        default_factory=dict
+    )

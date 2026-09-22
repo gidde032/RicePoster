@@ -7,6 +7,17 @@ published as a tagged release or GitHub Release.
 
 ### Added
 
+- **Per-slot platform toggles.** Each slot's Instagram and TikTok trackers are
+  now switches. Turning one off shows an amber **Disabled** state,
+  leaves that platform out of the slot's manual and scheduled posts without
+  touching the saved session, and stays off until flipped back (stored in
+  account state). Scheduled batches freeze the selection when they are
+  scheduled. A disabled platform is recorded as **Disabled** in History. It
+  sends no notification, and it never turns a batch "partial" or keeps its
+  media snapshot. Slots with both platforms off keep their draft but are left
+  out of Post All and Schedule, and the confirmation names the exact targets
+  (e.g. "Instagram only").
+
 - **Cross-slot fingerprint comparison.** The offline fingerprint probe now
   supports `--all-slots`, runs configured identities sequentially against local
   `file://` pages and throwaway browser profiles, reports distinct and identical
@@ -51,6 +62,14 @@ published as a tagged release or GitHub Release.
   never schedule.
 
 ### Changed
+
+- **Dependency pins updated for Python 3.12–3.14.** The old pins
+  (`pydantic-core`, `greenlet`) had no wheels for Python 3.13+, so
+  `pip install -r requirements.txt` failed on a machine without 3.12.
+  `requirements.txt` and both pre-commit hook environments now pin current
+  releases (FastAPI 0.141, Pydantic 2.13, Playwright 1.62, Anthropic 0.121,
+  among others), and the unused `aiofiles` is dropped. CI adds a
+  non-required Python 3.14 job beside the required 3.12 check.
 
 - **Instagram posting path hardening (Slot A, 2026-09-13).** Three changes
   from `fable-scan/slotA/detection-analysis.md`, decisions D2, D4, and D5:
@@ -103,6 +122,15 @@ published as a tagged release or GitHub Release.
   [#68](https://github.com/gidde032/RicePoster/issues/68))
 
 ### Fixed
+
+- Caption generation with a missing or rejected `ANTHROPIC_API_KEY` now
+  answers 400 with a message naming the key and `credentials.env`, instead
+  of a bare 500 whose cause only reached the server log.
+
+- The credentials-leak gate no longer fails when `credentials.env` sets
+  `SCHEDULER_ENABLED=false` (a value the test suite sets for itself), and the
+  logging-handler tests count only RicePoster's own console handler, so they
+  pass under pytest versions that attach extra capture handlers.
 
 - Instagram posting now accepts both Create-menu variants observed across
   accounts: the established `a[href="#"]` Post item and the newer nested

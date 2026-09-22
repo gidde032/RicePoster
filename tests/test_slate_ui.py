@@ -422,7 +422,7 @@ def test_summary_classifies_a_no_session_skip_as_skipped_not_failed():
         pytest.skip("node needed to execute the classifier")
     defs = "\n".join(
         _full_function(n)
-        for n in ("isUnconfirmed", "isSkipError", "classifyPlatform", "summaryEventsFromResults")
+        for n in ("isUnconfirmed", "isSkipError", "isDisabledSkip", "classifyPlatform", "summaryEventsFromResults")
     )
     driver = """
 const results = [
@@ -527,11 +527,13 @@ def test_small_button_target_size():
 
 
 def test_dead_tracker_status_css_removed():
-    """Reviewer 2 (LOW): .st-warn/.st-fail were never applied (trackers are
-    session-only)."""
+    """Reviewer 2 (LOW): .st-fail was never applied (trackers show session
+    readiness). .st-warn is live again: it marks a platform the maintainer
+    switched off ("Disabled")."""
     html = _html()
-    assert ".status-dot.st-warn" not in html
     assert ".status-dot.st-fail" not in html
+    assert ".status-dot.st-warn" in html
+    assert "'st-warn', 'Disabled'" in _full_function("renderSlots")
 
 
 # --- R3-1 / R3-2: History and Queue table layouts + coloured status ---------

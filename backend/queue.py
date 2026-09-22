@@ -10,12 +10,13 @@ import os
 import re
 import shutil
 import uuid
-from dataclasses import dataclass, fields, asdict, replace
+from dataclasses import dataclass, field, fields, asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.config import HISTORY_FILE, MEDIA_DIR, QUEUE_FILE, QUEUE_MEDIA_DIR
 from backend.models import QUEUE_MIN_LEAD, validate_future_fire_time
+from backend.outcomes import PLATFORMS, is_disabled_skip
 from backend.logging_setup import get_logger
 
 _log = get_logger("queue")
@@ -30,6 +31,10 @@ class SlotBatch:
     # immutable value here so target identity is explicit and future roster
     # changes can never reinterpret a presentation position.
     account_id: str | None = None
+    # Frozen at scheduling time, so flipping a tracker later never changes
+    # what an already-queued batch posts to. Rows written before the per-slot
+    # toggles lack the key and default to both platforms.
+    enabled_platforms: list[str] = field(default_factory=lambda: list(PLATFORMS))
 
 
 # Keys that older queue rows carry and current code no longer models. `style`
@@ -101,6 +106,12 @@ def _slot_from_dict(s: dict) -> SlotBatch:
         raise ValueError("queued slot target is not a filesystem-safe account id")
     if s.get("account_id") != s["slot"]:
         raise ValueError("queued slot/account_id target is ambiguous")
+    if "enabled_platforms" in s:
+        enabled = s["enabled_platforms"]
+        if (not isinstance(enabled, list) or not enabled
+                or len(set(enabled)) != len(enabled)
+                or any(p not in PLATFORMS for p in enabled)):
+            raise ValueError("queued slot has an invalid enabled_platforms list")
     known = {f.name for f in fields(SlotBatch)}
     unexpected = set(s) - known - _RETIRED_SLOT_KEYS - _REPORTED_SLOT_KEYS
     if unexpected:
@@ -276,6 +287,7 @@ def _snapshot_media(batch_id: str, slots: list[SlotBatch],
             media_path=str(dst),
             caption=s.caption,
             account_id=s.account_id or s.slot,
+            enabled_platforms=list(s.enabled_platforms),
         ))
     return updated
 
@@ -408,7 +420,7 @@ def _history_index(history_file: Path | None = None
     """Summarise history rows per batch_id, with a count of unreadable lines.
 
     A row counts as unsuccessful unless it carries an `errors` list that is
-    empty — matching PostResult.success. A row whose `errors` key is missing or
+    empty apart from disabled-platform notes — matching PostResult.success. A row whose `errors` key is missing or
     malformed counts as unsuccessful too: it does not *prove* the slot posted
     cleanly, and only proof justifies deleting media. History rows before
     2026-07-27 are known to be unreliable, which is the same argument.
@@ -441,7 +453,7 @@ def _history_index(history_file: Path | None = None
         entry = index.setdefault(batch_id, {"rows": 0, "unsuccessful": 0})
         entry["rows"] += 1
         errors = row.get("errors")
-        if not isinstance(errors, list) or errors:
+        if not isinstance(errors, list) or not all(is_disabled_skip(e) for e in errors):
             entry["unsuccessful"] += 1
     return index, unparseable
 

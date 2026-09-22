@@ -8,8 +8,9 @@ house style. Runs entirely on your machine — nothing is deployed.
 
 ## Prerequisites
 
-- Python 3.10+ with the dependencies in `requirements.txt`
-  (this repo currently runs on the Anaconda `python`)
+- Python **3.12–3.14**. CI runs the suite on 3.12 (the required check) and
+  3.14. Use whichever of those your machine already has; if it has none,
+  `brew install python@3.14` (macOS) or your platform's installer
 - Google Chrome installed (Playwright uses the `chrome` channel for video codec
   support)
 - An Anthropic API key (for caption generation)
@@ -19,6 +20,7 @@ house style. Runs entirely on your machine — nothing is deployed.
 ```bash
 git clone https://github.com/gidde032/RicePoster.git
 cd RicePoster
+python3 -m venv .venv && source .venv/bin/activate   # python3 = 3.12–3.14
 pip install -r requirements.txt
 playwright install chrome          # the `chrome` channel, NOT `chromium`
 pre-commit install                 # wire up the commit/push quality gates
@@ -30,6 +32,9 @@ cp credentials.env.example credentials.env   # then edit it
 `channel="chrome"` (real Google Chrome) for video codec support, so
 `playwright install chromium` would fetch the wrong browser. If you already
 have Google Chrome installed system-wide, you can skip that line.
+
+Keep the virtual environment activated whenever you run RicePoster:
+`run.sh` and every command below call plain `python`.
 
 The two `pre-commit install` lines make the local quality gates real. Until you
 run them, local commits and pushes enforce nothing; pull requests still run the
@@ -65,6 +70,14 @@ an identical cadence (cut by the randomised `INTER_SLOT_DELAY_*` gap). Raising
 the delays, or dropping `instagram` from the pre-flight list, reduces
 automated traffic further.
 
+## First run (no accounts needed)
+
+The template ships with `POST_MODE=mock`, which fakes every post. After
+setting `ANTHROPIC_API_KEY`, start the server (see **Running**), upload a file
+to a slot, generate a caption and press **Post All**. Nothing leaves your
+machine, and you can learn the UI before logging in any real account.
+Switch to `POST_MODE=browser` once sessions are saved.
+
 ## Session login (browser mode)
 
 Each account needs a saved login before it can post. The preferred local layout
@@ -79,13 +92,19 @@ sessions/
 ```
 
 The local state file stores only ordered active IDs, named saved rosters,
-per-account caption defaults, stable Instagram device assignments, and a schema
+per-account caption defaults, per-account disabled platforms (see **Per-slot
+platform toggles**), stable Instagram device assignments, and a schema
 version. It never stores cookies, credentials, captions, queue contents, or
 media. Existing `ACCOUNT_SLOTS`, Instagram/TikTok profile directories, and
 legacy `sessions/tiktok/{SLOT}_cookies.json` files remain readable without an
 automatic migration.
 
-Session-manager commands remain available for compatibility-configured IDs:
+`session_manager` only accepts IDs listed in `ACCOUNT_SLOTS`. To log in a new
+account, add its ID there first (for example `ACCOUNT_SLOTS=A,B,C,account-four`);
+the saved session then lands in the folder layout above. Each active Instagram
+account also needs a distinct device profile (`device_identity.DISPLAYS`); the
+Accounts view reports when that capacity is used up.
+
 
 ```bash
 python -m backend.session_manager login all            # every slot × platform
@@ -117,7 +136,9 @@ can post to real accounts. Don't expose it to the network.
 
 1. Open **Accounts** to choose or load the exact ordered roster for Review;
    each account shows its saved-session availability and local caption default.
-2. Upload a media file per slot (each slot gets unique media).
+2. Upload a media file per slot (each slot gets unique media). Check the
+   Instagram and TikTok trackers at the top of each slot; click one to leave
+   that platform out of the slot (see **Per-slot platform toggles** below).
 3. Pick a **caption style** per slot (defaults to Generic / minimal) and optionally
    type a topic/description, then **Generate Captions** — fills every slot
    whose caption box is empty, editable in place.
@@ -129,9 +150,34 @@ can post to real accounts. Don't expose it to the network.
 6. **Post All** — confirm the exact named account/platform targets; accounts
    then post sequentially, one browser at a time. The status
    panel updates live with which slot/platform is currently posting.
+   Or **Schedule** — pick a local date and time, then **Confirm Schedule**.
+   The batch waits in the **Queue** view and fires while the server is
+   running (`SCHEDULER_ENABLED=true`); it must be at least one minute
+   ahead.
 7. Final per-slot status: ✓ confirmed, ⚠ **unconfirmed** (the success element
    never appeared — check the platform before reposting, the post may have
-   gone through), or an error message.
+   gone through), ⊘ skipped (no saved session), ○ disabled (switched off on
+   the slot), or an error message.
+
+**Per-slot platform toggles.** The Instagram and TikTok trackers in each slot's
+header show the saved session (green **Ready**, grey **No session**) and are
+also switches. Click one (or focus it and press Space) to turn that platform
+off for the slot: it turns amber and reads **Disabled**, and only the other
+platform posts. The saved session is kept. The toggle stays off, across
+reloads and future runs, until you click it again. When it is off:
+
+- Post All and Schedule leave that platform out, and the confirmation names
+  the exact targets (for example `Instagram only`).
+- No browser opens for it, no pre-flight check probes it, and no notification
+  mentions it. History records it as **Disabled**, not as skipped or failed.
+- A scheduled batch keeps the selection it was scheduled with; flipping a
+  toggle later does not change batches already in the queue. A batch whose
+  enabled platforms all succeeded counts as fully successful, so its media
+  snapshot is released.
+- With both platforms off, the slot keeps its draft but is left out of Post
+  All and Schedule.
+
+A **No session** tracker cannot be toggled; log in first.
 
 **Pull from Clipper** (steps 2–3 in one click): if you use
 [RiceClipper](https://github.com/gidde032/RiceClipper) to render captioned
@@ -158,7 +204,7 @@ untouched. This is manual and irreversible; it does not delete the working
 copies already staged under `media/`.
 
 Also in the UI: an upload progress bar for large videos, a caption character
-counter (2,200 limit), session dots on each slot card, **New Run** to clear
+counter (2,200 limit), the per-slot session trackers and toggles above, **New Run** to clear
 everything for the next batch, **Clear media** to empty the `media/` upload
 library (your original files are untouched), a **History** panel showing
 recent runs (backed by gitignored `history.jsonl`), and a clickable
@@ -176,7 +222,7 @@ consume one of those persistent browser identities.
 
 **Stats** is read-only and database-free. It aggregates local history and the
 current media footprint while keeping confirmed, unconfirmed, failed, and
-skipped outcomes separate. Cumulative media bytes are explicitly labeled
+skipped outcomes separate. Platforms you disabled are not counted. Cumulative media bytes are explicitly labeled
 **since tracking began** because older history rows have no byte count.
 
 Only one post run can be active at a time; a second attempt gets a clear
@@ -215,6 +261,16 @@ request, no restart needed. A malformed file is skipped with a console warning.
   dialogs (content-check opt-ins, feature promos) that block automation.
   The error message will name the dialog; log into that account in a normal
   browser, dismiss it once, and it won't reappear.
+- **`pip install` fails compiling `pydantic-core` or `greenlet`** — your
+  Python is outside 3.12–3.14 (or the virtual environment was built from an
+  older checkout's pins). Recreate `.venv` with a supported Python and
+  reinstall `requirements.txt`.
+- **Caption generation says `ANTHROPIC_API_KEY` is not set or was rejected** —
+  put a valid key in `credentials.env` and restart the server; the template's
+  placeholder is not a key.
+- **"Unknown slot/account target"** or **Post All stays disabled** — check the
+  Accounts view: the account must be active, have media and a caption, and
+  have at least one platform toggle on.
 - **Watch it work** — set `HEADLESS=false` to see the browser during posting.
   This also removes two Instagram detection tells; see the `HEADLESS` row in
   the config table.

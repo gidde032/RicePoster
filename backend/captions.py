@@ -93,6 +93,16 @@ def _build_content(user_prompt: str, thumbnail_b64: str = ""):
     ]
 
 
+class CaptionConfigError(RuntimeError):
+    """The Anthropic key is missing or was rejected.
+
+    A setup problem the maintainer fixes in credentials.env, not a server
+    fault, so the endpoint answers it with a readable 400 instead of a bare
+    500 whose cause only reached the server log. The message never includes
+    the key itself.
+    """
+
+
 async def generate_caption(
     media_type: str,
     topic: str,
@@ -103,7 +113,7 @@ async def generate_caption(
 ) -> str:
     """Generate a single caption for one media file using the given style."""
     if not ANTHROPIC_API_KEY.get_secret_value():
-        raise RuntimeError(
+        raise CaptionConfigError(
             "ANTHROPIC_API_KEY is not set in credentials.env — captions cannot be generated."
         )
 
@@ -122,10 +132,17 @@ async def generate_caption(
         media_type, topic, selected.no_topic_fallback, avoid_caption, feedback
     )
 
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=500,
-        system=selected.system_prompt,
-        messages=[{"role": "user", "content": _build_content(user_prompt, thumbnail_b64)}],
-    )
+    try:
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=500,
+            system=selected.system_prompt,
+            messages=[{"role": "user", "content": _build_content(user_prompt, thumbnail_b64)}],
+        )
+    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as e:
+        raise CaptionConfigError(
+            "The Anthropic API rejected ANTHROPIC_API_KEY "
+            f"({type(e).__name__}). Set a valid key in credentials.env and "
+            "restart the server."
+        ) from e
     return response.content[0].text.strip()

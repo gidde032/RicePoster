@@ -23,6 +23,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import HERMETIC_ENV
 from tests.paths import PROJECT_ROOT
 
 # PROJECT_ROOT is a Path here, as everywhere else. An earlier revision kept a
@@ -386,6 +387,18 @@ def test_suite_does_not_read_the_maintainers_credentials_env():
         # Fresh clone: nothing to leak. The invariant holds trivially.
         return
 
+    leaked = leaked_credentials_keys(env_path)
+
+    assert not leaked, (
+        f"credentials.env leaked into the test environment: {sorted(leaked)}. "
+        f"backend/config.py must not call load_dotenv under pytest — see "
+        f"config.UNDER_PYTEST. A gate whose result depends on a gitignored "
+        f"file is not a gate."
+    )
+
+
+def leaked_credentials_keys(env_path: Path) -> list[str]:
+    """Keys from `env_path` whose values are present in os.environ."""
     leaked = []
     for line in env_path.read_text().splitlines():
         line = line.strip()
@@ -396,12 +409,10 @@ def test_suite_does_not_read_the_maintainers_credentials_env():
         # A key already exported in the maintainer's shell would be in
         # os.environ regardless of dotenv, and python-dotenv would not have
         # overwritten it. Only a *matching* value is evidence of a load.
+        # The suite sets some variables itself (conftest.HERMETIC_ENV); a
+        # credentials.env holding the same value is a coincidence, not a load.
+        if HERMETIC_ENV.get(key) == value:
+            continue
         if os.environ.get(key) == value and value:
             leaked.append(key)
-
-    assert not leaked, (
-        f"credentials.env leaked into the test environment: {sorted(leaked)}. "
-        f"backend/config.py must not call load_dotenv under pytest — see "
-        f"config.UNDER_PYTEST. A gate whose result depends on a gitignored "
-        f"file is not a gate."
-    )
+    return leaked

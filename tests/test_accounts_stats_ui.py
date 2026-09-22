@@ -44,7 +44,10 @@ def test_payload_contains_only_active_immutable_account_ids():
 def test_post_and_schedule_confirm_exact_names_and_platforms():
     summary = _function_body("targetSummary")
     assert "account?.name || slot.slot" in summary
-    assert "Instagram" in summary and "TikTok" in summary
+    # Platform names come from the slot's enabled_platforms, so a toggled-off
+    # platform is never named, and a single one reads "<Platform> only".
+    assert "slot.enabled_platforms" in summary and "PLATFORM_NAMES" in summary
+    assert "only`" in summary and "join(' + ')" in summary
     assert "for exactly:" in summary
     assert "[${slot.slot}]" in summary
     assert 'class="slot-account-id"' in _function_body("renderSlots")
@@ -111,7 +114,9 @@ def test_roster_rerender_hydrates_retained_review_drafts():
 def test_confirmation_names_both_platforms_when_no_sessions_are_saved():
     """Cold-review repair (MEDIUM): empty availability still names intended platforms."""
     summary = _function_body("targetSummary")
-    assert "no saved Instagram or TikTok session" in summary
+    # Names every platform the slot still has switched on, e.g. "no saved
+    # Instagram or TikTok session" when both are on.
+    assert "no saved ${slot.enabled_platforms.map(p => PLATFORM_NAMES[p]).join(' or ')} session" in summary
 
 
 def test_tiktok_only_accounts_do_not_count_against_instagram_device_capacity():
