@@ -529,11 +529,11 @@ def test_small_button_target_size():
 def test_dead_tracker_status_css_removed():
     """Reviewer 2 (LOW): .st-fail was never applied (trackers show session
     readiness). .st-warn is live again: it marks a platform the maintainer
-    switched off ("Session Disabled")."""
+    switched off ("Disabled")."""
     html = _html()
     assert ".status-dot.st-fail" not in html
     assert ".status-dot.st-warn" in html
-    assert "'st-warn', 'Session Disabled'" in _full_function("renderSlots")
+    assert "'st-warn', 'Disabled'" in _full_function("renderSlots")
 
 
 # --- R3-1 / R3-2: History and Queue table layouts + coloured status ---------

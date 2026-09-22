@@ -283,7 +283,7 @@ def _function(name):
 def test_trackers_are_accessible_switches():
     render = _function("renderSlots")
     assert 'role="switch"' in render and "aria-checked" in render
-    assert "'Session Disabled'" in render
+    assert "'Disabled'" in render
     assert "togglePlatform(" in render
     # A missing session has nothing to switch.
     assert "(missing ? ' disabled'" in render

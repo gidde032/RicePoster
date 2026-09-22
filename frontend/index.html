@@ -321,7 +321,7 @@
     background: var(--muted-grey);
   }
   /* Trackers reflect session readiness (ready / no-session) plus a platform
-     the maintainer switched off (warn, "Session Disabled"). */
+     the maintainer switched off (warn, "Disabled"). */
   .tracker .status-dot.st-ok    { background: var(--ok); }
   .tracker .status-dot.st-muted { background: var(--muted-grey); }
   .tracker .status-dot.st-warn  { background: var(--warn); }
@@ -1367,7 +1367,7 @@ function renderSlots() {
     // meaning so status is never colour-only. sessDots stays the variable name.
     //
     // Each tracker is also a switch: clicking it leaves that platform out of
-    // this slot's posts (warn "Session Disabled") until it is flipped back.
+    // this slot's posts (warn "Disabled") until it is flipped back.
     // The saved session itself is untouched. A missing session has nothing to
     // switch, so that tracker stays read-only.
     const sess = state.postMode === 'browser' ? state.sessions?.[slot] : null;
@@ -1377,7 +1377,7 @@ function renderSlots() {
       const on = isPlatformEnabled(slot, platform);
       let st, label;
       if (missing) [st, label] = ['st-muted', 'No session'];
-      else if (!on) [st, label] = ['st-warn', 'Session Disabled'];
+      else if (!on) [st, label] = ['st-warn', 'Disabled'];
       else [st, label] = known ? ['st-ok', 'Ready'] : ['st-muted', '—'];
       const title = missing ? `No saved ${name} session`
         : on ? `Posting to ${name}. Click to leave ${name} out of this slot's posts.`

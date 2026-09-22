@@ -8,7 +8,7 @@ published as a tagged release or GitHub Release.
 ### Added
 
 - **Per-slot platform toggles.** Each slot's Instagram and TikTok trackers are
-  now switches. Turning one off shows an amber **Session Disabled** state,
+  now switches. Turning one off shows an amber **Disabled** state,
   leaves that platform out of the slot's manual and scheduled posts without
   touching the saved session, and stays off until flipped back (stored in
   account state). Scheduled batches freeze the selection when they are

@@ -1,6 +1,6 @@
 """Rendered-layout guard for the slot header (per-slot platform toggles).
 
-"Session Disabled" is much longer than "Ready", and with two of them plus the
+"Disabled" is longer than "Ready", and with two of them plus the
 media badge the header used to overflow its card at medium widths, pushing the
 labels and the ⋯ menu into the neighbouring slot. This renders the real page
 in Chrome with every /api call faked (nothing touches a server, queue, or
@@ -135,7 +135,7 @@ def test_both_labels_truncate_together_when_space_runs_out(layouts):
     are truncated, not just the right-hand TikTok one."""
     cards, _ = layouts[TIGHT]
     both_off = next(c for c in cards if c["id"] == "A")
-    assert [l["text"] for l in both_off["labels"]] == ["Session Disabled"] * 2
+    assert [l["text"] for l in both_off["labels"]] == ["Disabled"] * 2
     assert all(l["truncated"] for l in both_off["labels"]), both_off["labels"]
     # One label truncating never leaves the other untouched while it too is
     # wider than it can show.
