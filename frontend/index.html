@@ -291,6 +291,7 @@
     font-weight: 700;
     color: var(--primary-text);
     min-width: 18px;
+    flex: none;
   }
   .slot-account-id {
     color: var(--muted-grey);
@@ -300,8 +301,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .slot-trackers { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
-  .tracker { display: inline-flex; align-items: center; gap: 5px; }
+  /* The header must always fit inside its card. Only the account id and the
+     two tracker labels give up space; both trackers shrink in proportion to
+     their width, so their labels start truncating together rather than the
+     right-hand one alone. Icons, dots, number, badge and menu never shrink. */
+  .slot-trackers { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0; }
+  .tracker { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; }
   /* Session trackers double as per-platform toggles. Reset the button chrome
      so an enabled tracker looks exactly like the old read-only one. */
   button.tracker {
@@ -311,6 +316,7 @@
   button.tracker:disabled { cursor: default; }
   .tracker .plat-ico { width: 17px; height: 17px; color: var(--rice-grey); flex: 0 0 auto; }
   .tracker .status-dot {
+    flex: none;
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--muted-grey);
   }
@@ -321,6 +327,9 @@
   .tracker .status-dot.st-warn  { background: var(--warn); }
   .tracker .st-text.st-warn     { color: var(--warn); }
   .tracker .st-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 10px;
     text-transform: uppercase;
@@ -331,6 +340,7 @@
      there is no per-slot menu behaviour, so it is aria-hidden and not focusable
      rather than a control that does nothing. */
   .slot-menu {
+    flex: none;
     margin-left: auto;
     color: var(--muted-grey);
     font-size: 18px;
@@ -399,6 +409,7 @@
   textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
 
   .media-type-badge {
+    flex: none;
     display: inline-block;
     font-size: 10px;
     text-transform: uppercase;
