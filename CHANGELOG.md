@@ -104,6 +104,12 @@ published as a tagged release or GitHub Release.
 
 ### Fixed
 
+- Instagram posting now accepts both Create-menu variants observed across
+  accounts: the established `a[href="#"]` Post item and the newer nested
+  `div`/`span` row. The fallback waits for exact visible text and still uses
+  native Playwright input, so a visibly open menu no longer fails as missing.
+  ([#88](https://github.com/gidde032/RicePoster/issues/88))
+
 - At narrow viewports (<=860px) the sidebar nav collapsed vertically above
   the main content, stretching the page. The sidebar now becomes a compact
   horizontal icon strip, the logo moves into the topbar, and the topbar stays
