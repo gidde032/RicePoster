@@ -1,5 +1,11 @@
 # Changelog
 
+## Deprecated
+
+This repository is frozen and archived. Development continues in RiceSuite's
+`poster/` pillar. The items under [Unreleased] below were never tagged here;
+they ship only as part of RiceSuite.
+
 ## [Unreleased]
 
 This section contains changes merged into `main` that have not yet been

@@ -1,10 +1,28 @@
 # RicePoster
 
+> **This repository is archived and no longer maintained.** RicePoster is now the `poster/` pillar of [RiceSuite](https://github.com/gidde032/RiceSuite). All new work, fixes, and Issues go there. The code here is the final standalone version. It still runs, but it gets no fixes, including for changes to the Instagram or TikTok web UI.
+
 A local browser-automation tool that posts unique media and AI-generated
 captions to an ordered roster of saved Instagram and TikTok accounts. FastAPI
 serves a single-page UI; Playwright drives real Chrome
 sessions to do the posting; the Anthropic API writes captions in a consistent
 house style. Runs entirely on your machine — nothing is deployed.
+
+## Move to RiceSuite
+
+Install and run RicePoster as part of RiceSuite. Follow the
+[RiceSuite README](https://github.com/gidde032/RiceSuite#readme) for install
+and run steps.
+
+RiceSuite can use your existing RicePoster data in place. In RiceSuite's
+`ricesuite.env`, set `RICEPOSTER_DATA_DIR` to your RicePoster checkout.
+RiceSuite then reads and writes that checkout's `sessions/`, `queue.jsonl`,
+`queue_media/`, `history.jsonl`, and `media/` directly, including your
+logged-in sessions.
+
+Stop this app before you start RiceSuite. `rice` refuses to start while
+anything answers on the old ports (8765 / 8000 / 1738), because RiceSuite and
+the old apps share the same live data.
 
 ## Prerequisites
 
@@ -334,17 +352,11 @@ maintainer `SPEC.md`. CI uses `-ra` so both reasons remain visible.
 
 ## Contributing
 
-Open work and roadmap candidates are tracked in
-[GitHub Issues](https://github.com/gidde032/RicePoster/issues). Development
-uses short-lived branches and pull requests targeting `main`; link the relevant
-issue and use `Closes #N` only when the pull request fully resolves it. The
-repository templates capture reproduction evidence, live-account risk,
-verification, and documentation impact.
+Issues and pull requests are closed here; open them on
+[RiceSuite](https://github.com/gidde032/RiceSuite/issues).
 
 Never include credentials, session data, account identifiers, private captions,
-or logged-in screenshots in an issue or pull request. Changes that require live
-platform traffic need explicit maintainer approval; tests and offline probes
-are preferred.
+or logged-in screenshots in an issue or pull request.
 
 ## Internal documentation
 
