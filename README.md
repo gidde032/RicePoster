@@ -18,11 +18,12 @@ RiceSuite can use your existing RicePoster data in place. In RiceSuite's
 `ricesuite.env`, set `RICEPOSTER_DATA_DIR` to your RicePoster checkout.
 RiceSuite then reads and writes that checkout's `sessions/`, `queue.jsonl`,
 `queue_media/`, `history.jsonl`, and `media/` directly, including your
-logged-in sessions.
+logged-in sessions. To move the data under `~/.ricesuite`, follow the
+[data migration guide](https://github.com/gidde032/RiceSuite/blob/main/docs/data-migration.md). A fresh install uses `~/.ricesuite` from the start.
 
-Stop this app before you start RiceSuite. `rice` refuses to start while
-anything answers on the old ports (8765 / 8000 / 1738), because RiceSuite and
-the old apps share the same live data.
+Stop this app first. RiceSuite's `rice` command refuses to start while
+anything answers on this app's port or the other legacy ports (8765 / 8000 /
+1738). A legacy app started by mistake could otherwise write to the same data.
 
 ## Prerequisites
 
